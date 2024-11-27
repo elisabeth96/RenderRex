@@ -15,7 +15,7 @@
 namespace rr {
 
 void show() {
-    Renderer& renderer = Renderer::get_renderer();
+    Renderer& renderer = Renderer::get();
     // continuously update window and react to user input
     while (!renderer.should_close()) {
         renderer.update_frame();
@@ -53,7 +53,7 @@ void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<
 }
 
 void register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles) {
-    Renderer& renderer = Renderer::get_renderer();
+    Renderer& renderer = Renderer::get();
     renderer.register_mesh(name, positions, triangles);
 }
 

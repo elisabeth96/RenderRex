@@ -31,18 +31,25 @@ public:
     Renderer(const Renderer&)            = delete;
     Renderer& operator=(const Renderer&) = delete;
 
+    WGPURenderPassEncoder create_render_pass(WGPUTextureView nextTexture, WGPUCommandEncoder encoder);
+
     void update_frame();
 
     bool should_close();
 
-    static Renderer& get_renderer();
+    static Renderer& get();
 
     void register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles);
 
 private:
     Renderer();
 
-    void configure_depth_texture();
+    void initialize_window();
+    void initialize_device();
+    void initialize_swap_chain();
+    void initialize_queue();
+
+    void initialize_depth_texture();
 
     GLFWwindow* m_window;
     WGPUSurface m_surface;

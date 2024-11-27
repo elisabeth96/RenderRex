@@ -123,18 +123,7 @@ Renderer::~Renderer() { // release resources
     glfwTerminate();
 }
 
-void Renderer::update_frame() {
-    glfwPollEvents();
-
-    WGPUTextureView nextTexture = wgpuSwapChainGetCurrentTextureView(m_swapChain);
-    if (!nextTexture) {
-        std::cerr << "Cannot acquire next swap chain texture" << std::endl;
-        exit(1);
-    }
-
-    WGPUCommandEncoderDescriptor commandEncoderDesc = {};
-    commandEncoderDesc.label                        = "Command Encoder";
-    WGPUCommandEncoder encoder                      = wgpuDeviceCreateCommandEncoder(m_device, &commandEncoderDesc);
+WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView nextTexture, WGPUCommandEncoder encoder) {
 
     WGPURenderPassDescriptor renderPassDesc{};
 
@@ -169,8 +158,23 @@ void Renderer::update_frame() {
     renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
 
     // renderPassDesc.timestampWriteCount = 0;
-    renderPassDesc.timestampWrites   = nullptr;
-    WGPURenderPassEncoder renderPass = wgpuCommandEncoderBeginRenderPass(encoder, &renderPassDesc);
+    renderPassDesc.timestampWrites = nullptr;
+    return wgpuCommandEncoderBeginRenderPass(encoder, &renderPassDesc);
+}
+
+void Renderer::update_frame() {
+    glfwPollEvents();
+
+    WGPUTextureView nextTexture = wgpuSwapChainGetCurrentTextureView(m_swapChain);
+    if (!nextTexture) {
+        std::cerr << "Cannot acquire next swap chain texture" << std::endl;
+        exit(1);
+    }
+    WGPUCommandEncoderDescriptor commandEncoderDesc = {};
+    commandEncoderDesc.label                        = "Command Encoder";
+    WGPUCommandEncoder encoder                      = wgpuDeviceCreateCommandEncoder(m_device, &commandEncoderDesc);
+
+    WGPURenderPassEncoder renderPass = create_render_pass(nextTexture, encoder);
 
     for (auto& drawable : m_drawables) {
         drawable.second->draw(*this, renderPass);
@@ -200,7 +204,7 @@ bool Renderer::should_close() {
     return glfwWindowShouldClose(m_window);
 }
 
-Renderer& Renderer::get_renderer() {
+Renderer& Renderer::get() {
     static Renderer instance;
     return instance;
 }
@@ -212,7 +216,7 @@ void Renderer::register_mesh(std::string name, std::vector<glm::vec3>& positions
     m_drawables[name]          = std::move(mesh);
 }
 
-void Renderer::configure_depth_texture() { // Create the depth texture
+void Renderer::initialize_depth_texture() { // Create the depth texture
     m_depthTextureFormat                   = WGPUTextureFormat_Depth24Plus;
     WGPUTextureDescriptor depthTextureDesc = {};
     depthTextureDesc.dimension             = WGPUTextureDimension_2D;
@@ -237,7 +241,7 @@ void Renderer::configure_depth_texture() { // Create the depth texture
     m_depthTextureView                             = wgpuTextureCreateView(depthTexture, &depthTextureViewDesc);
 }
 
-Renderer::Renderer() {
+void Renderer::initialize_window() {
     // initialize GLFW
     if (!glfwInit()) {
         std::cerr << "Failed to initialize GLFW" << std::endl;
@@ -252,6 +256,9 @@ Renderer::Renderer() {
         glfwTerminate();
         exit(EXIT_FAILURE);
     }
+}
+
+void Renderer::initialize_device() {
     // We create a WGPU descriptor
     WGPUInstanceDescriptor desc = {};
     desc.nextInChain            = nullptr;
@@ -291,33 +298,12 @@ Renderer::Renderer() {
         std::cout << std::endl;
     };
     wgpuDeviceSetUncapturedErrorCallback(m_device, onDeviceError, nullptr /* pUserData */);
+    wgpuAdapterRelease(adapter);
+}
 
-    // m_surfaceFormat = wgpuSurfaceGetPreferredFormat(m_surface, adapter);
-    // if (m_surfaceFormat == WGPUTextureFormat_Undefined) {
-    //     std::cerr << "Failed to get preferred surface format" << std::endl;
-    //     return;
-    // }
-    m_swapChainFormat = WGPUTextureFormat_BGRA8Unorm;
-
-    // WGPUSurfaceConfiguration config = {};
-    // config.nextInChain              = nullptr;
-    // config.width                    = m_width;
-    // config.height                   = m_height;
-    // config.format                   = m_swapChainFormat;
-    // config.viewFormatCount          = 0;
-    // config.viewFormats              = nullptr;
-    // config.usage                    = WGPUTextureUsage_RenderAttachment;
-    // config.device                   = m_device;
-    // config.presentMode              = WGPUPresentMode_Fifo;
-    // config.alphaMode                = WGPUCompositeAlphaMode_Auto;
-
-    m_queue = wgpuDeviceGetQueue(m_device);
-    if (!m_queue) {
-        std::cerr << "Failed to get device queue" << std::endl;
-        return;
-    }
-
+void Renderer::initialize_swap_chain() {
     // Create swap chain
+    m_swapChainFormat                     = WGPUTextureFormat_BGRA8Unorm;
     WGPUSwapChainDescriptor swapChainDesc = {};
     swapChainDesc.width                   = m_width;
     swapChainDesc.height                  = m_height;
@@ -326,21 +312,27 @@ Renderer::Renderer() {
     swapChainDesc.presentMode             = WGPUPresentMode_Fifo;
     swapChainDesc.label                   = "Main swapchain";
 
-    // Debug prints
-    std::cout << "Creating swap chain with:" << std::endl
-              << "Width: " << swapChainDesc.width << std::endl
-              << "Height: " << swapChainDesc.height << std::endl
-              << "Format: " << static_cast<int>(swapChainDesc.format) << std::endl;
-
     m_swapChain = wgpuDeviceCreateSwapChain(m_device, m_surface, &swapChainDesc);
     if (!m_swapChain) {
         std::cerr << "Failed to create swap chain" << std::endl;
-        return;
+        exit(1);
     }
+}
 
-    wgpuAdapterRelease(adapter);
+void Renderer::initialize_queue() {
+    m_queue = wgpuDeviceGetQueue(m_device);
+    if (!m_queue) {
+        std::cerr << "Failed to get device queue" << std::endl;
+        exit(2);
+    }
+}
 
-    configure_depth_texture();
+Renderer::Renderer() {
+    initialize_window();
+    initialize_device();
+    initialize_queue();
+    initialize_swap_chain();
+    initialize_depth_texture();
 }
 
 } // namespace rr
