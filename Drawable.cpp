@@ -10,8 +10,6 @@
 
 namespace rr {
 
-constexpr float M_PI = 3.14159265358979323846f;
-
 // Have the compiler check byte alignment
 static_assert(sizeof(MyUniforms) % 16 == 0);
 
@@ -229,48 +227,6 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     bufferDesc.mappedAtCreation = false;
     m_uniformBuffer             = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
 
-    // Build transform matrices
-
-    // Translate the view
-    glm::vec3 focalPoint(0.0, 0.0, -1.0);
-    // Rotate the object
-    float angle1 = 2.0f; // arbitrary time
-    // Rotate the view point
-    float angle2 = 3.0f * M_PI / 4.0f;
-
-    // m_S                    = glm::scale(glm::mat4x4(1.0), glm::vec3(0.3f));
-    // m_T1                   = glm::mat4x4(1.0);
-    // glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-    // m_uniforms.modelMatrix = R1 * m_T1 * m_S;
-    m_uniforms.modelMatrix = glm::mat4x4(1.0);
-
-    glm::mat4x4 R2        = glm::rotate(glm::mat4x4(1.0), -angle2, glm::vec3(1.0, 0.0, 0.0));
-    glm::mat4x4 T2        = glm::translate(glm::mat4x4(1.0), -focalPoint);
-    m_uniforms.viewMatrix = T2 * R2;
-
-    float ratio       = float(renderer.m_width) / float(renderer.m_height);
-    float focalLength = 2.0;
-    float near        = 0.01f;
-    float far         = 100.0f;
-    float divider     = 1 / (focalLength * (far - near));
-    m_uniforms.projectionMatrix =
-        transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.0, 0.0, ratio, 0.0, 0.0, 0.0, 0.0, far * divider, -far * near * divider,
-                              0.0, 0.0, 1.0 / focalLength, 0.0));
-
-    m_uniforms.time  = 1.0f;
-    m_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
-    wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
-
-    std::cout << "Initial View matrix: " << std::endl;
-    std::cout << m_uniforms.viewMatrix[0][0] << " " << m_uniforms.viewMatrix[0][1] << " " << m_uniforms.viewMatrix[0][2]
-              << " " << m_uniforms.viewMatrix[0][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[1][0] << " " << m_uniforms.viewMatrix[1][1] << " " << m_uniforms.viewMatrix[1][2]
-              << " " << m_uniforms.viewMatrix[1][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[2][0] << " " << m_uniforms.viewMatrix[2][1] << " " << m_uniforms.viewMatrix[2][2]
-              << " " << m_uniforms.viewMatrix[2][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[3][0] << " " << m_uniforms.viewMatrix[3][1] << " " << m_uniforms.viewMatrix[3][2]
-              << " " << m_uniforms.viewMatrix[3][3] << std::endl;
-
     // Create a binding
     WGPUBindGroupEntry binding{};
     binding.binding = 0;
@@ -289,23 +245,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     wgpuShaderModuleRelease(shaderModule);
 }
 
-void Mesh::draw(const Renderer& renderer, WGPURenderPassEncoder renderPass) {
-
-    // Update uniform buffer
-    // m_uniforms.time = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
-    // Only update the 1-st float of the buffer
-    // wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, time), &m_uniforms.time,
-    // sizeof(MyUniforms::time));
-
-    // Update view matrix
-    // float       angle1     = m_uniforms.time;
-    // glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-    // m_uniforms.modelMatrix = R1 * m_T1 * m_S;
-    // wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, modelMatrix),
-    // &m_uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
-
+void Mesh::draw(WGPURenderPassEncoder renderPass) {
     wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
-
     wgpuRenderPassEncoderSetVertexBuffer(renderPass, 0, m_vertexBuffer, 0,
                                          m_vertex_attributes.size() * sizeof(VertexAttributes));
 
@@ -320,22 +261,22 @@ void Mesh::set_view_matrix(const CameraState& state, WGPUQueue queue) {
     float     cy          = cos(state.angles.y);
     float     sy          = sin(state.angles.y);
     glm::vec3 position    = glm::vec3(cx * cy, sx * cy, sy) * std::exp(-state.zoom);
+
     m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
+    m_uniforms.modelMatrix = glm::mat4(1.0f);
+    m_uniforms.color       = {0.8f, 0.6f, 0.3f, 1.0f};
+    m_uniforms.time = 0;
 
-    // print view matrix
+    float ratio       = 1.0f;
+    float focalLength = 2.0;
+    float near        = 0.01f;
+    float far         = 100.0f;
+    float divider     = 1 / (focalLength * (far - near));
+    m_uniforms.projectionMatrix =
+        transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.0, 0.0, ratio, 0.0, 0.0, 0.0, 0.0, far * divider, -far * near * divider,
+                              0.0, 0.0, 1.0 / focalLength, 0.0));
 
-    std::cout << "View matrix: " << std::endl;
-    std::cout << m_uniforms.viewMatrix[0][0] << " " << m_uniforms.viewMatrix[0][1] << " " << m_uniforms.viewMatrix[0][2]
-              << " " << m_uniforms.viewMatrix[0][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[1][0] << " " << m_uniforms.viewMatrix[1][1] << " " << m_uniforms.viewMatrix[1][2]
-              << " " << m_uniforms.viewMatrix[1][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[2][0] << " " << m_uniforms.viewMatrix[2][1] << " " << m_uniforms.viewMatrix[2][2]
-              << " " << m_uniforms.viewMatrix[2][3] << std::endl;
-    std::cout << m_uniforms.viewMatrix[3][0] << " " << m_uniforms.viewMatrix[3][1] << " " << m_uniforms.viewMatrix[3][2]
-              << " " << m_uniforms.viewMatrix[3][3] << std::endl;
-
-    wgpuQueueWriteBuffer(queue, m_uniformBuffer, offsetof(MyUniforms, viewMatrix), &m_uniforms.viewMatrix,
-                         sizeof(MyUniforms::viewMatrix));
+    wgpuQueueWriteBuffer(queue, m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
 }
 
 } // namespace rr

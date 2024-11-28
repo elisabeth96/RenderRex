@@ -16,7 +16,7 @@
 
 namespace rr {
 
-constexpr float M_PI = 3.14159265358979323846f;
+constexpr float PI = 3.14159265358979323846f;
 
 /**
  * Utility function to get a WebGPU adapter
@@ -167,7 +167,6 @@ WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView nextTexture, 
 }
 
 void Renderer::update_frame() {
-    updateDragInertia();
     glfwPollEvents();
 
     WGPUTextureView nextTexture = wgpuSwapChainGetCurrentTextureView(m_swapChain);
@@ -182,7 +181,7 @@ void Renderer::update_frame() {
     WGPURenderPassEncoder renderPass = create_render_pass(nextTexture, encoder);
 
     for (auto& drawable : m_drawables) {
-        drawable.second->draw(*this, renderPass);
+        drawable.second->draw(renderPass);
     }
 
     wgpuRenderPassEncoderEnd(renderPass);
@@ -218,6 +217,7 @@ void Renderer::register_mesh(std::string name, std::vector<glm::vec3>& positions
                              std::vector<std::array<int, 3>>& triangles) {
     // create a unique pointer for the mesh
     std::unique_ptr<Mesh> mesh = std::make_unique<Mesh>(positions, triangles, *this);
+    mesh->set_view_matrix(m_cameraState, m_queue);
     m_drawables[name]          = std::move(mesh);
 }
 
@@ -370,11 +370,8 @@ void Renderer::onMouseMove(double xpos, double ypos) {
         glm::vec2 delta        = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;
         m_cameraState.angles   = m_drag.startCameraState.angles + delta;
         // Clamp to avoid going too far when orbitting up/down
-        m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -M_PI / 2 + 1e-5f, M_PI / 2 - 1e-5f);
+        m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
         updateViewMatrix();
-        // Inertia
-        m_drag.velocity      = delta - m_drag.previousDelta;
-        m_drag.previousDelta = delta;
     }
 }
 
@@ -399,23 +396,6 @@ void Renderer::onScroll(double /* xoffset */, double yoffset) {
     m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
     m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -10.0f, 10.0f);
     updateViewMatrix();
-}
-
-void Renderer::updateDragInertia() {
-    constexpr float eps = 1e-4f;
-    // Apply inertia only when the user released the click.
-    if (!m_drag.active) {
-        // Avoid updating the matrix when the velocity is no longer noticeable
-        if (std::abs(m_drag.velocity.x) < eps && std::abs(m_drag.velocity.y) < eps) {
-            return;
-        }
-        m_cameraState.angles += m_drag.velocity;
-        m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -M_PI / 2 + 1e-5f, M_PI / 2 - 1e-5f);
-        // Dampen the velocity so that it decreases exponentially and stops
-        // after a few frames.
-        m_drag.velocity *= m_drag.intertia;
-        updateViewMatrix();
-    }
 }
 
 } // namespace rr

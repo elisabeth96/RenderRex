@@ -35,11 +35,6 @@ struct DragState {
     // Constant settings
     float sensitivity       = 0.01f;
     float scrollSensitivity = 0.1f;
-
-    // Inertia
-    glm::vec2 velocity = {0.0, 0.0};
-    glm::vec2 previousDelta;
-    float     intertia = 0.9f;
 };
 
 class Renderer {
@@ -84,8 +79,6 @@ private:
     void initialize_depth_texture();
 
     void updateViewMatrix();
-
-    void updateDragInertia();
 
     GLFWwindow* m_window;
     WGPUSurface m_surface;

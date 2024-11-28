@@ -18,7 +18,7 @@ class Drawable {
 public:
     virtual ~Drawable() = default;
 
-    virtual void draw(const Renderer& renderer, WGPURenderPassEncoder renderPass) = 0;
+    virtual void draw(WGPURenderPassEncoder renderPass) = 0;
 
     virtual void set_view_matrix(const CameraState& state, WGPUQueue queue) = 0;
 
@@ -54,19 +54,17 @@ public:
     ~Mesh();
 
     void configure_render_pipeline(const std::vector<VertexAttributes>& vertex_attributes, const Renderer& renderer);
-    void draw(const Renderer& renderer, WGPURenderPassEncoder renderPass) override;
+    void draw(WGPURenderPassEncoder renderPass) override;
     void set_view_matrix(const CameraState& state, WGPUQueue queue) override;
 
 private:
-    // mesh stuff
     WGPUBuffer                    m_vertexBuffer;
-    MyUniforms                    m_uniforms;
     WGPUBuffer                    m_uniformBuffer;
-    std::vector<VertexAttributes> m_vertex_attributes;
     WGPUBindGroup                 m_bindGroup;
     WGPURenderPipeline            m_pipeline;
-    glm::mat4x4                   m_T1;
-    glm::mat4x4                   m_S;
+
+    MyUniforms                    m_uniforms;
+    std::vector<VertexAttributes> m_vertex_attributes;
 };
 
 } // namespace rr
