@@ -1,7 +1,5 @@
 // contains all the unser interface funtions for the renderrex library
 #pragma once
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_LEFT_HANDED
 #include "glm/glm.hpp"
 
 #include <array>
@@ -12,7 +10,7 @@
 namespace rr {
 
 class Renderer;
-struct CameraState;
+class Camera;
 
 class Drawable {
 public:
@@ -20,7 +18,7 @@ public:
 
     virtual void draw(WGPURenderPassEncoder renderPass) = 0;
 
-    virtual void set_view_matrix(const CameraState& state, WGPUQueue queue) = 0;
+    virtual void update_camera(const Camera& camera, WGPUQueue queue) = 0;
 
 private:
 };
@@ -49,11 +47,11 @@ struct VertexAttributes {
 class Mesh : public Drawable {
 public:
     Mesh(std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles, const Renderer& renderer);
-    ~Mesh();
+    ~Mesh() override;
 
     void configure_render_pipeline(const std::vector<VertexAttributes>& vertex_attributes, const Renderer& renderer);
     void draw(WGPURenderPassEncoder renderPass) override;
-    void set_view_matrix(const CameraState& state, WGPUQueue queue) override;
+    void update_camera(const Camera& camera, WGPUQueue queue) override;
 
 private:
     WGPUBuffer                    m_vertexBuffer;

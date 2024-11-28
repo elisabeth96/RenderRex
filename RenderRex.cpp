@@ -2,17 +2,9 @@
 
 #include "RenderRex.h"
 #include "Renderer.h"
-#include "glfw3webgpu/glfw3webgpu.h"
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_LEFT_HANDED
-#include "glm/gtc/matrix_transform.hpp"
-#include <GLFW/glfw3.h>
-#include <cassert>
-#include <cmath>
 #include <fstream>
 #include <iostream>
 #include <sstream>
-#include <webgpu/webgpu.h>
 
 namespace rr {
 

@@ -14,7 +14,18 @@ add_subdirectory(webgpu)
 add_subdirectory(glfw3webgpu)
 
 # Create executable and ensure proper dependency ordering
-add_executable(RenderRex main.cpp RenderRex.cpp RenderRex.h Drawable.h Drawable.cpp Renderer.h Renderer.cpp)
+add_executable(RenderRex
+		main.cpp
+		RenderRex.h
+		RenderRex.cpp
+		Drawable.h
+		Drawable.cpp
+		Renderer.h
+		Renderer.cpp
+		Camera.h
+		Camera.cpp
+)
+
 target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)
 
 target_copy_webgpu_binaries(RenderRex)

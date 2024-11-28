@@ -1,11 +1,8 @@
 // contains all the unser interface funtions for the renderrex library
 
 #include "Drawable.h"
+#include "Camera.h"
 #include "Renderer.h"
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_LEFT_HANDED
-#include "glm/gtc/matrix_transform.hpp"
-#include <GLFW/glfw3.h> // TODO: Remove this dependency
 #include <iostream>
 
 namespace rr {
@@ -329,25 +326,17 @@ void Mesh::draw(WGPURenderPassEncoder renderPass) {
     wgpuRenderPassEncoderDraw(renderPass, uint32_t(m_vertex_attributes.size()), 1, 0, 0);
 }
 
-void Mesh::set_view_matrix(const CameraState& state, WGPUQueue queue) {
-    float     cx          = cos(state.angles.x);
-    float     sx          = sin(state.angles.x);
-    float     cy          = cos(state.angles.y);
-    float     sy          = sin(state.angles.y);
-    glm::vec3 position    = glm::vec3(cx * cy, sx * cy, sy) * std::exp(-state.zoom);
+void Mesh::update_camera(const Camera& camera, WGPUQueue queue) {
+    m_uniforms.viewMatrix = camera.transform();
 
-    m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
     m_uniforms.modelMatrix = glm::mat4(1.0f);
     m_uniforms.color       = {0.f, 0.0f, 0.0f, 1.0f};
 
-    float ratio       = 1.0f;
-    float focalLength = 2.0;
-    float near        = 0.01f;
-    float far         = 100.0f;
-    float divider     = 1 / (focalLength * (far - near));
-    m_uniforms.projectionMatrix =
-        transpose(glm::mat4x4(1.0, 0.0, 0.0, 0.0, 0.0, ratio, 0.0, 0.0, 0.0, 0.0, far * divider, -far * near * divider,
-                              0.0, 0.0, 1.0 / focalLength, 0.0));
+    float aspect_ratio = 1;
+    float far_plane = 100.0f;
+    float near_plane = 0.01f;
+    float fov = glm::radians(45.0f);
+    m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
 
     wgpuQueueWriteBuffer(queue, m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
 }

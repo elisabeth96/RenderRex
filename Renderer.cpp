@@ -3,20 +3,12 @@
 #include "Renderer.h"
 #include "Drawable.h"
 #include "glfw3webgpu/glfw3webgpu.h"
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_FORCE_LEFT_HANDED
-#include "glm/gtc/matrix_transform.hpp"
 #include <GLFW/glfw3.h>
 #include <cassert>
-#include <cmath>
-#include <fstream>
 #include <iostream>
-#include <sstream>
 #include <webgpu/webgpu.h>
 
 namespace rr {
-
-constexpr float PI = 3.14159265358979323846f;
 
 /**
  * Utility function to get a WebGPU adapter
@@ -217,8 +209,8 @@ void Renderer::register_mesh(std::string name, std::vector<glm::vec3>& positions
                              std::vector<std::array<int, 3>>& triangles) {
     // create a unique pointer for the mesh
     std::unique_ptr<Mesh> mesh = std::make_unique<Mesh>(positions, triangles, *this);
-    mesh->set_view_matrix(m_cameraState, m_queue);
-    m_drawables[name]          = std::move(mesh);
+    mesh->update_camera(m_camera, m_queue);
+    m_drawables[name] = std::move(mesh);
 }
 
 void Renderer::initialize_depth_texture() { // Create the depth texture
@@ -350,7 +342,7 @@ void Renderer::initialize_queue() {
     }
 }
 
-Renderer::Renderer() {
+Renderer::Renderer() : m_camera({0, 0, 5}, {0, 0, 0}, {0, 1, 0}) {
     initialize_window();
     initialize_device();
     initialize_queue();
@@ -358,32 +350,43 @@ Renderer::Renderer() {
     initialize_depth_texture();
 }
 
-void Renderer::updateViewMatrix() {
+void Renderer::updateDrawableCameras() {
     for (auto& drawable : m_drawables) {
-        drawable.second->set_view_matrix(m_cameraState, m_queue);
+        drawable.second->update_camera(m_camera, m_queue);
     }
+}
+
+glm::vec2 transform_mouse(glm::vec2 in, uint32_t width, uint32_t height)
+{
+    return {in.x * 2.f / float(width) - 1.f, 1.f - 2.f * in.y / float(height)};
 }
 
 void Renderer::onMouseMove(double xpos, double ypos) {
     if (m_drag.active) {
-        glm::vec2 currentMouse = glm::vec2(-(float)xpos, (float)ypos);
-        glm::vec2 delta        = (currentMouse - m_drag.startMouse) * m_drag.sensitivity;
-        m_cameraState.angles   = m_drag.startCameraState.angles + delta;
-        // Clamp to avoid going too far when orbitting up/down
-        m_cameraState.angles.y = glm::clamp(m_cameraState.angles.y, -PI / 2 + 1e-5f, PI / 2 - 1e-5f);
-        updateViewMatrix();
+        glm::vec2 current_pos = transform_mouse({xpos, ypos}, m_width, m_height);
+        glm::vec2 last_pos = m_drag.last_pos;
+
+        if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
+            m_camera.rotate(last_pos, current_pos);
+        } else if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
+            glm::vec2 delta = (current_pos - last_pos) * m_drag.panSpeed;
+            m_camera.pan(delta);
+        }
+
+        m_drag.last_pos = current_pos;
+
+        updateDrawableCameras();
     }
 }
 
 void Renderer::onMouseButton(int button, int action, int /* modifiers */) {
-    if (button == GLFW_MOUSE_BUTTON_LEFT) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT || button == GLFW_MOUSE_BUTTON_MIDDLE) {
         switch (action) {
         case GLFW_PRESS:
             m_drag.active = true;
-            double xpos, ypos;
-            glfwGetCursorPos(m_window, &xpos, &ypos);
-            m_drag.startMouse       = glm::vec2(-(float)xpos, (float)ypos);
-            m_drag.startCameraState = m_cameraState;
+            double x, y;
+            glfwGetCursorPos(m_window, &x, &y);
+            m_drag.last_pos = transform_mouse({x, y}, m_width, m_height);
             break;
         case GLFW_RELEASE:
             m_drag.active = false;
@@ -393,9 +396,8 @@ void Renderer::onMouseButton(int button, int action, int /* modifiers */) {
 }
 
 void Renderer::onScroll(double /* xoffset */, double yoffset) {
-    m_cameraState.zoom += m_drag.scrollSensitivity * static_cast<float>(yoffset);
-    m_cameraState.zoom = glm::clamp(m_cameraState.zoom, -10.0f, 10.0f);
-    updateViewMatrix();
+    m_camera.zoom(static_cast<float>(yoffset) * m_drag.scrollSensitivity);
+    updateDrawableCameras();
 }
 
 } // namespace rr
