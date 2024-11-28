@@ -11,7 +11,7 @@
 
 int main() {
 
-    std::string path = "C:\\Users\\janos\\Documents\\Projects\\RenderRex\\mammoth_simple.obj";
+    std::string path = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
 
     std::vector<glm::vec3>          positions;
     std::vector<std::array<int, 3>> triangles;

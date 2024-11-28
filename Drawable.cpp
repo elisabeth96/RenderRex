@@ -10,8 +10,6 @@
 
 namespace rr {
 
-constexpr float M_PI = 3.14159265358979323846f;
-
 // Have the compiler check byte alignment
 static_assert(sizeof(MyUniforms) % 16 == 0);
 
