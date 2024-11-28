@@ -16,8 +16,8 @@ class Drawable;
 
 class Renderer {
 public:
-    const uint32_t    m_width  = 2000;
-    const uint32_t    m_height = 2000;
+    const uint32_t    m_width  = 1000;
+    const uint32_t    m_height = 1000;
     WGPUDevice        m_device;
     WGPUQueue         m_queue;
     WGPUSwapChain     m_swapChain;

@@ -29,3 +29,5 @@ if (MSVC)
 	# Disable warning C4201: nonstandard extension used: nameless struct/union
 	target_compile_options(RenderRex PUBLIC /wd4201)
 endif (MSVC)
+
+target_compile_definitions(RenderRex PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
