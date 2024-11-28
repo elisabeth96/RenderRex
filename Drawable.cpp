@@ -52,57 +52,76 @@ void Mesh::configure_render_pipeline(const std::vector<VertexAttributes>& vertex
 
     const char* shaderSource = R"(
 struct VertexInput {
-	@location(0) position: vec3f,
-	@location(1) normal: vec3f, // new attribute
-	@location(2) color: vec3f,
+        @location(0) position: vec3f,
+        @location(1) normal: vec3f,
+        @location(2) color: vec3f,
 };
 
 struct VertexOutput {
-	@builtin(position) position: vec4f,
-	@location(0) color: vec3f,
-	@location(1) normal: vec3f, // <--- Add a normal output
+        @builtin(position) position: vec4f,
+        @location(0) color: vec3f,
+        @location(1) normal: vec3f,
 };
 
-/**
- * A structure holding the value of our uniforms
- */
 struct MyUniforms {
     projectionMatrix: mat4x4f,
     viewMatrix: mat4x4f,
     modelMatrix: mat4x4f,
     color: vec4f,
-    time: f32,
 };
 
-// Instead of the simple uTime variable, our uniform variable is a struct
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-	var out: VertexOutput;
-	out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
-	// Forward the normal
-    out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
-	out.color = in.color;
-	return out;
+        var out: VertexOutput;
+        out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+        out.normal = (uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz;
+        out.color = in.color;
+        return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-	let normal = normalize(in.normal);
+        let normal = normalize(in.normal);
 
-	let lightColor1 = vec3f(1.0, 1, 1);
-	let lightColor2 = vec3f(1, 1, 1);
-	let lightDirection1 = vec3f(0.5, -0.9, 0.1);
-	let lightDirection2 = vec3f(0.2, 0.4, 0.3);
-	let shading1 = max(0.0, dot(lightDirection1, normal));
-	let shading2 = max(0.0, dot(lightDirection2, normal));
-	let shading = shading1 * lightColor1 + shading2 * lightColor2;
-	let color = in.color * shading;
+        // Key light (main illumination)
+        let keyLightColor = vec3f(1.0, 0.98, 0.95);  // Slightly warm white
+        let keyLightDirection = normalize(vec3f(-0.5, -0.8, -0.5));
+        let keyIntensity = 1.0;
 
-	// Gamma-correction
-	let corrected_color = pow(color, vec3f(2.2));
-	return vec4f(corrected_color, 1);
+        // Fill light (reduces harsh shadows)
+        let fillLightColor = vec3f(0.9, 0.9, 1.0);   // Slightly cool white
+        let fillLightDirection = normalize(vec3f(0.8, -0.2, 0.3));
+        let fillIntensity = 0.5;
+
+        // Rim light (helps outline shapes)
+        let rimLightColor = vec3f(1.0, 1.0, 1.0);    // Pure white
+        let rimLightDirection = normalize(vec3f(-0.2, 0.5, 0.8));
+        let rimIntensity = 0.3;
+
+        // Ambient light (ensures no part is completely dark)
+        let ambientIntensity = 0.2;
+
+        // Calculate each light contribution
+        let keyLight = max(0.0, -dot(keyLightDirection, normal)) * keyIntensity * keyLightColor;
+        let fillLight = max(0.0, -dot(fillLightDirection, normal)) * fillIntensity * fillLightColor;
+        let rimLight = max(0.0, -dot(rimLightDirection, normal)) * rimIntensity * rimLightColor;
+        let ambient = vec3f(ambientIntensity);
+
+        // Combine all lighting
+        let totalLighting = keyLight + fillLight + rimLight + ambient;
+
+        // Apply lighting to color
+        let color = in.color * totalLighting;
+
+        // Tone mapping to prevent over-exposure
+        let mapped_color = color / (color + 1.0);
+
+        // Gamma correction (using 2.2 for standard sRGB)
+        let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
+
+        return vec4f(corrected_color, 1.0);
 }
 )";
 
@@ -265,7 +284,6 @@ void Mesh::set_view_matrix(const CameraState& state, WGPUQueue queue) {
     m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
     m_uniforms.modelMatrix = glm::mat4(1.0f);
     m_uniforms.color       = {0.8f, 0.6f, 0.3f, 1.0f};
-    m_uniforms.time = 0;
 
     float ratio       = 1.0f;
     float focalLength = 2.0;

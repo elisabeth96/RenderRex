@@ -34,8 +34,6 @@ struct MyUniforms {
     glm::mat4x4          viewMatrix;
     glm::mat4x4          modelMatrix;
     std::array<float, 4> color;
-    float                time;
-    float                _pad[3];
 };
 
 /**
