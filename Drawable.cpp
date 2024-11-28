@@ -2,6 +2,8 @@
 
 #include "Drawable.h"
 #include "Renderer.h"
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_LEFT_HANDED
 #include "glm/gtc/matrix_transform.hpp"
 #include <GLFW/glfw3.h> // TODO: Remove this dependency
 #include <iostream>
@@ -236,10 +238,11 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     // Rotate the view point
     float angle2 = 3.0f * M_PI / 4.0f;
 
-    m_S                    = glm::scale(glm::mat4x4(1.0), glm::vec3(0.3f));
-    m_T1                   = glm::mat4x4(1.0);
-    glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-    m_uniforms.modelMatrix = R1 * m_T1 * m_S;
+    // m_S                    = glm::scale(glm::mat4x4(1.0), glm::vec3(0.3f));
+    // m_T1                   = glm::mat4x4(1.0);
+    // glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
+    // m_uniforms.modelMatrix = R1 * m_T1 * m_S;
+    m_uniforms.modelMatrix = glm::mat4x4(1.0);
 
     glm::mat4x4 R2        = glm::rotate(glm::mat4x4(1.0), -angle2, glm::vec3(1.0, 0.0, 0.0));
     glm::mat4x4 T2        = glm::translate(glm::mat4x4(1.0), -focalPoint);
@@ -257,6 +260,16 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
     m_uniforms.time  = 1.0f;
     m_uniforms.color = {0.0f, 1.0f, 0.4f, 1.0f};
     wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
+
+    std::cout << "Initial View matrix: " << std::endl;
+    std::cout << m_uniforms.viewMatrix[0][0] << " " << m_uniforms.viewMatrix[0][1] << " " << m_uniforms.viewMatrix[0][2]
+              << " " << m_uniforms.viewMatrix[0][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[1][0] << " " << m_uniforms.viewMatrix[1][1] << " " << m_uniforms.viewMatrix[1][2]
+              << " " << m_uniforms.viewMatrix[1][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[2][0] << " " << m_uniforms.viewMatrix[2][1] << " " << m_uniforms.viewMatrix[2][2]
+              << " " << m_uniforms.viewMatrix[2][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[3][0] << " " << m_uniforms.viewMatrix[3][1] << " " << m_uniforms.viewMatrix[3][2]
+              << " " << m_uniforms.viewMatrix[3][3] << std::endl;
 
     // Create a binding
     WGPUBindGroupEntry binding{};
@@ -279,17 +292,17 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 void Mesh::draw(const Renderer& renderer, WGPURenderPassEncoder renderPass) {
 
     // Update uniform buffer
-    m_uniforms.time = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
+    // m_uniforms.time = static_cast<float>(glfwGetTime()); // glfwGetTime returns a double
     // Only update the 1-st float of the buffer
-    wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, time), &m_uniforms.time,
-                         sizeof(MyUniforms::time));
+    // wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, time), &m_uniforms.time,
+    // sizeof(MyUniforms::time));
 
     // Update view matrix
-    float       angle1     = m_uniforms.time;
-    glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
-    m_uniforms.modelMatrix = R1 * m_T1 * m_S;
-    wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, modelMatrix), &m_uniforms.modelMatrix,
-                         sizeof(MyUniforms::modelMatrix));
+    // float       angle1     = m_uniforms.time;
+    // glm::mat4x4 R1         = glm::rotate(glm::mat4x4(1.0), angle1, glm::vec3(0.0, 0.0, 1.0));
+    // m_uniforms.modelMatrix = R1 * m_T1 * m_S;
+    // wgpuQueueWriteBuffer(renderer.m_queue, m_uniformBuffer, offsetof(MyUniforms, modelMatrix),
+    // &m_uniforms.modelMatrix, sizeof(MyUniforms::modelMatrix));
 
     wgpuRenderPassEncoderSetPipeline(renderPass, m_pipeline);
 
@@ -299,6 +312,30 @@ void Mesh::draw(const Renderer& renderer, WGPURenderPassEncoder renderPass) {
     // Set binding group
     wgpuRenderPassEncoderSetBindGroup(renderPass, 0, m_bindGroup, 0, nullptr);
     wgpuRenderPassEncoderDraw(renderPass, uint32_t(m_vertex_attributes.size()), 1, 0, 0);
+}
+
+void Mesh::set_view_matrix(const CameraState& state, WGPUQueue queue) {
+    float     cx          = cos(state.angles.x);
+    float     sx          = sin(state.angles.x);
+    float     cy          = cos(state.angles.y);
+    float     sy          = sin(state.angles.y);
+    glm::vec3 position    = glm::vec3(cx * cy, sx * cy, sy) * std::exp(-state.zoom);
+    m_uniforms.viewMatrix = glm::lookAt(position, glm::vec3(0.0f), glm::vec3(0, 0, 1));
+
+    // print view matrix
+
+    std::cout << "View matrix: " << std::endl;
+    std::cout << m_uniforms.viewMatrix[0][0] << " " << m_uniforms.viewMatrix[0][1] << " " << m_uniforms.viewMatrix[0][2]
+              << " " << m_uniforms.viewMatrix[0][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[1][0] << " " << m_uniforms.viewMatrix[1][1] << " " << m_uniforms.viewMatrix[1][2]
+              << " " << m_uniforms.viewMatrix[1][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[2][0] << " " << m_uniforms.viewMatrix[2][1] << " " << m_uniforms.viewMatrix[2][2]
+              << " " << m_uniforms.viewMatrix[2][3] << std::endl;
+    std::cout << m_uniforms.viewMatrix[3][0] << " " << m_uniforms.viewMatrix[3][1] << " " << m_uniforms.viewMatrix[3][2]
+              << " " << m_uniforms.viewMatrix[3][3] << std::endl;
+
+    wgpuQueueWriteBuffer(queue, m_uniformBuffer, offsetof(MyUniforms, viewMatrix), &m_uniforms.viewMatrix,
+                         sizeof(MyUniforms::viewMatrix));
 }
 
 } // namespace rr

@@ -3,6 +3,8 @@
 #include "RenderRex.h"
 #include "Renderer.h"
 #include "glfw3webgpu/glfw3webgpu.h"
+#define GLM_FORCE_DEPTH_ZERO_TO_ONE
+#define GLM_FORCE_LEFT_HANDED
 #include "glm/gtc/matrix_transform.hpp"
 #include <GLFW/glfw3.h>
 #include <cassert>
@@ -49,6 +51,18 @@ void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<
             triangle[2] -= 1;
             triangles.push_back(triangle);
         }
+    }
+    // normalize positions
+    glm::vec3 min = positions[0];
+    glm::vec3 max = positions[0];
+    for (const auto& position : positions) {
+        min = glm::min(min, position);
+        max = glm::max(max, position);
+    }
+    glm::vec3 center = 0.5f * (min + max);
+    float     scale  = 1.0f / glm::max(glm::max(max.x - min.x, max.y - min.y), max.z - min.z);
+    for (auto& position : positions) {
+        position = scale * (position - center);
     }
 }
 
