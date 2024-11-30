@@ -42,3 +42,4 @@ if (MSVC)
 endif (MSVC)
 
 target_compile_definitions(RenderRex PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
