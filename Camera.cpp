@@ -76,6 +76,11 @@ glm::vec3 Camera::up() const {
     return glm::normalize(glm::vec3(inv_camera * glm::vec4(0, 1, 0, 0)));
 }
 
+glm::vec3 Camera::center() const {
+    // The center is the negative of the translation stored in center_translation
+    return -glm::vec3(center_translation[3]);
+}
+
 void Camera::update_camera() {
     camera     = translation * glm::toMat4(rotation) * center_translation;
     inv_camera = glm::inverse(camera);

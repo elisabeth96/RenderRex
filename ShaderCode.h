@@ -5,7 +5,6 @@ struct VertexInput {
         @location(0) position: vec3f,
         @location(1) normal: vec3f,
         @location(2) bary: vec3f,
-        @location(3) wire_limits: vec3f,
 };
 
 struct VertexOutput {
@@ -14,7 +13,6 @@ struct VertexOutput {
         @location(1) normal: vec3f,
         @location(2) world_pos: vec3f,    // For light calculations
         @location(3) view_pos: vec3f,     // For view-dependent effects
-        @location(4) wire_limits: vec3f,
 };
 
 struct MyUniforms {
@@ -47,7 +45,6 @@ fn vs_main(in: VertexInput) -> VertexOutput {
         out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * modelPos;
         out.normal = normalize((uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
         out.bary = in.bary;
-        out.wire_limits = in.wire_limits;
         out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
         return out;
 }

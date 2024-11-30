@@ -40,6 +40,8 @@ public:
 
     glm::vec3 up() const;
 
+    glm::vec3 center() const;
+
 private:
     void update_camera();
 };

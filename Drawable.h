@@ -1,7 +1,8 @@
 // contains all the unser interface funtions for the renderrex library
 #pragma once
-#include "glm/glm.hpp"
 
+#include "BoundingBox.h"
+#include "glm/glm.hpp"
 #include <array>
 #include <string>
 #include <vector>
@@ -14,13 +15,16 @@ class Camera;
 
 class Drawable {
 public:
+    Drawable(const Renderer* r, BoundingBox bb) : m_renderer(r), m_bbox(bb) {}
+
     virtual ~Drawable() = default;
 
     virtual void draw(WGPURenderPassEncoder renderPass) = 0;
 
-    virtual void update_camera(const Camera& camera, WGPUQueue queue) = 0;
+    virtual void on_camera_update() = 0;
 
-private:
+    const Renderer* m_renderer = nullptr;
+    BoundingBox     m_bbox;
 };
 
 /**
@@ -42,23 +46,23 @@ struct VertexAttributes {
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec3 bary;
-    glm::vec3 wire_limits;
 };
 
 class Mesh : public Drawable {
 public:
-    Mesh(std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles, const Renderer& renderer);
+    Mesh(const std::vector<glm::vec3>& positions, const std::vector<std::array<int, 3>>& triangles,
+         const Renderer& renderer);
     ~Mesh() override;
 
     void configure_render_pipeline(const std::vector<VertexAttributes>& vertex_attributes, const Renderer& renderer);
-    void draw(WGPURenderPassEncoder renderPass) override;
-    void update_camera(const Camera& camera, WGPUQueue queue) override;
+    void draw(WGPURenderPassEncoder render_pass) override;
+    void on_camera_update() override;
 
 private:
-    WGPUBuffer                    m_vertexBuffer;
-    WGPUBuffer                    m_uniformBuffer;
-    WGPUBindGroup                 m_bindGroup;
-    WGPURenderPipeline            m_pipeline;
+    WGPUBuffer         m_vertexBuffer;
+    WGPUBuffer         m_uniformBuffer;
+    WGPUBindGroup      m_bindGroup;
+    WGPURenderPipeline m_pipeline;
 
     MyUniforms                    m_uniforms;
     std::vector<VertexAttributes> m_vertex_attributes;

@@ -209,8 +209,20 @@ void Renderer::register_mesh(std::string name, std::vector<glm::vec3>& positions
                              std::vector<std::array<int, 3>>& triangles) {
     // create a unique pointer for the mesh
     std::unique_ptr<Mesh> mesh = std::make_unique<Mesh>(positions, triangles, *this);
-    mesh->update_camera(m_camera, m_queue);
     m_drawables[name] = std::move(mesh);
+
+    BoundingBox global_bb{};
+    for(auto& drawable : m_drawables) {
+        global_bb.expand_to_include(drawable.second->m_bbox);
+    }
+
+    glm::vec3 current_eye = m_camera.eye();
+    glm::vec3 current_center = m_camera.center();
+    glm::vec3 center = (global_bb.lower + global_bb.upper) * 0.5f;
+    glm::vec3 offset = current_eye - current_center;
+    glm::vec3 new_eye = center + offset;
+    m_camera = Camera(new_eye, center, m_camera.up());
+    on_camera_update();
 }
 
 void Renderer::initialize_depth_texture() { // Create the depth texture
@@ -350,9 +362,9 @@ Renderer::Renderer() : m_camera({0, 0, 5}, {0, 0, 0}, {0, 1, 0}) {
     initialize_depth_texture();
 }
 
-void Renderer::updateDrawableCameras() {
+void Renderer::on_camera_update() {
     for (auto& drawable : m_drawables) {
-        drawable.second->update_camera(m_camera, m_queue);
+        drawable.second->on_camera_update();
     }
 }
 
@@ -375,7 +387,7 @@ void Renderer::onMouseMove(double xpos, double ypos) {
 
         m_drag.last_pos = current_pos;
 
-        updateDrawableCameras();
+        on_camera_update();
     }
 }
 
@@ -397,7 +409,7 @@ void Renderer::onMouseButton(int button, int action, int /* modifiers */) {
 
 void Renderer::onScroll(double /* xoffset */, double yoffset) {
     m_camera.zoom(static_cast<float>(yoffset) * m_drag.scrollSensitivity);
-    updateDrawableCameras();
+    on_camera_update();
 }
 
 } // namespace rr

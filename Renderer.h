@@ -67,7 +67,7 @@ private:
     void initialize_queue();
     void initialize_depth_texture();
 
-    void updateDrawableCameras();
+    void on_camera_update();
 
     GLFWwindow* m_window;
     WGPUSurface m_surface;
