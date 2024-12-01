@@ -16,14 +16,15 @@ void show() {
     }
 }
 
-void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles) {
-    positions.clear();
-    triangles.clear();
+Mesh load_mesh(std::string path) {
+    Mesh  mesh;
+    auto& positions = mesh.positions;
+    auto& triangles = mesh.position_faces;
 
     std::ifstream input_file(path);
     if (!input_file.is_open()) {
         std::cerr << "Could not open file " << path << std::endl;
-        return;
+        return {};
     }
 
     std::string line;
@@ -36,7 +37,7 @@ void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<
             iss >> position.x >> position.y >> position.z;
             positions.push_back(position);
         } else if (token == "f") {
-            std::array<int, 3> triangle{};
+            Mesh::Face triangle(3);
             iss >> triangle[0] >> triangle[1] >> triangle[2];
             triangle[0] -= 1;
             triangle[1] -= 1;
@@ -44,22 +45,38 @@ void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<
             triangles.push_back(triangle);
         }
     }
+
+    return mesh;
 }
 
-void register_mesh(std::string name, const std::vector<glm::vec3>& positions,
-                   const std::vector<std::array<uint32_t, 3>>& triangles) {
-    Mesh      mesh(positions, triangles);
-    register_mesh(name, mesh);
+void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles) {
+    Mesh mesh = load_mesh(path);
+    if (!is_triangulated(mesh)) {
+        mesh.triangulate();
+    }
+    positions = mesh.positions;
+    triangles.resize(mesh.position_faces.size());
+    for (size_t i = 0; i < mesh.position_faces.size(); ++i) {
+        for (size_t j = 0; j < 3; ++j) {
+            triangles[i][j] = mesh.position_faces[i][j];
+        }
+    }
 }
 
-void register_mesh(std::string name, const Mesh& mesh) {
+RenderMesh* register_mesh(std::string name, const std::vector<glm::vec3>& positions,
+                          const std::vector<std::array<uint32_t, 3>>& triangles) {
+    Mesh mesh(positions, triangles);
+    return register_mesh(name, mesh);
+}
+
+RenderMesh* register_mesh(std::string name, const Mesh& mesh) {
     Renderer& renderer = Renderer::get();
     if (mesh.normal_faces.empty()) {
         Mesh m(mesh);
-        create_flat_normals(m);
-        renderer.register_mesh(name, m);
+        set_flat_normals(m);
+        return renderer.register_mesh(name, m);
     } else {
-        renderer.register_mesh(name, mesh);
+        return renderer.register_mesh(name, mesh);
     }
 }
 

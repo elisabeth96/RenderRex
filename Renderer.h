@@ -14,6 +14,7 @@
 namespace rr {
 
 class Drawable;
+class RenderMesh;
 struct Mesh;
 
 class Renderer {
@@ -52,7 +53,7 @@ public:
 
     static Renderer& get();
 
-    void register_mesh(std::string name, const Mesh& mesh);
+    RenderMesh* register_mesh(std::string name, const Mesh& mesh);
 
     // Mouse events
     void onMouseMove(double xpos, double ypos);

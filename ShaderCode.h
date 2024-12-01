@@ -80,8 +80,9 @@ fn aces_tone_mapping(color: vec3f) -> vec3f {
 }
 
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4f {
-        let normal = normalize(in.normal);
+fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location(0) vec4f {
+        // Flip the normal if we're looking at a back face
+        let normal = (f32(is_front) * 2.0 - 1.0) * normalize(in.normal);
         let view_dir = normalize(-in.view_pos);
 
         // Define material properties

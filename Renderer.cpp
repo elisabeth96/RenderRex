@@ -205,10 +205,12 @@ Renderer& Renderer::get() {
     return instance;
 }
 
-void Renderer::register_mesh(std::string name, const Mesh& mesh) {
+RenderMesh* Renderer::register_mesh(std::string name, const Mesh& mesh) {
     // create a unique pointer for the mesh
     std::unique_ptr<RenderMesh> rm = std::make_unique<RenderMesh>(mesh, *this);
-    m_drawables[name]              = std::move(rm);
+
+    auto& slot = m_drawables[name];
+    slot       = std::move(rm);
 
     BoundingBox global_bb{};
     for (auto& drawable : m_drawables) {
@@ -222,6 +224,8 @@ void Renderer::register_mesh(std::string name, const Mesh& mesh) {
     glm::vec3 new_eye        = center + offset;
     m_camera                 = Camera(new_eye, center, m_camera.up());
     on_camera_update();
+
+    return dynamic_cast<RenderMesh*>(slot.get());
 }
 
 void Renderer::initialize_depth_texture() { // Create the depth texture

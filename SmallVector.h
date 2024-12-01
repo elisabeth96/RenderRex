@@ -23,9 +23,8 @@ template <typename T, size_t N> class SmallVector {
 public:
     SmallVector() : data_ptr(reinterpret_cast<T*>(inline_buffer)), size_(0), capacity_(N) {}
 
-    // New constructor: fill constructor
-    SmallVector(const T& value, size_t num) : data_ptr(reinterpret_cast<T*>(inline_buffer)), size_(num), capacity_(N) {
-
+    SmallVector(size_t num, const T& value = T{})
+        : data_ptr(reinterpret_cast<T*>(inline_buffer)), size_(num), capacity_(N) {
         if (num > N) {
             // Need heap allocation
             capacity_ = num;
@@ -41,7 +40,6 @@ public:
         }
     }
 
-    // New constructor: initializer list constructor
     SmallVector(std::initializer_list<T> init)
         : data_ptr(reinterpret_cast<T*>(inline_buffer)), size_(init.size()), capacity_(N) {
 

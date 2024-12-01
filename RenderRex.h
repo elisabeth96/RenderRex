@@ -2,6 +2,7 @@
 #pragma once
 
 #include "Mesh.h"
+#include "Drawable.h"
 #include "Primitives.h"
 
 #include "glm/glm.hpp"
@@ -18,8 +19,10 @@ void show();
 
 void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles);
 
-void register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles);
+Mesh load_mesh(std::string path);
 
-void register_mesh(std::string name, const Mesh& mesh);
+RenderMesh* register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles);
+
+RenderMesh* register_mesh(std::string name, const Mesh& mesh);
 
 } // namespace rr

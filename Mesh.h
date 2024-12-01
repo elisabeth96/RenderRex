@@ -35,9 +35,12 @@ struct Mesh {
     }
 
     Mesh& translate(const glm::vec3& p);
+    Mesh& scale(const glm::vec3& s);
+    Mesh& triangulate();
 };
 
-void create_flat_normals(Mesh& mesh);
-void create_smooth_normals(Mesh& mesh);
+void set_flat_normals(Mesh& mesh);
+void set_smooth_normals(Mesh& mesh);
+bool is_triangulated(const Mesh& mesh);
 
 }
