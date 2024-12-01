@@ -14,6 +14,7 @@
 namespace rr {
 
 class Drawable;
+struct Mesh;
 
 class Renderer {
 public:
@@ -30,11 +31,11 @@ public:
 
     // Mouse drag state
     struct {
-        bool active = false;
+        bool      active = false;
         glm::vec2 last_pos;
-        float rotationSpeed = 0.01f;
-        float panSpeed = 0.01f;
-        float scrollSensitivity = 0.1f;
+        float     rotationSpeed     = 0.01f;
+        float     panSpeed          = 0.01f;
+        float     scrollSensitivity = 0.1f;
     } m_drag;
 
     ~Renderer();
@@ -51,7 +52,7 @@ public:
 
     static Renderer& get();
 
-    void register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles);
+    void register_mesh(std::string name, const Mesh& mesh);
 
     // Mouse events
     void onMouseMove(double xpos, double ypos);

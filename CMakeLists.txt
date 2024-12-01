@@ -24,6 +24,10 @@ add_executable(RenderRex
 		Renderer.cpp
 		Camera.h
 		Camera.cpp
+		Primitives.h
+		Primitives.cpp
+		Mesh.h
+		Mesh.cpp
 )
 
 target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)

@@ -2,45 +2,106 @@
 
 #include "Drawable.h"
 #include "Camera.h"
+#include "Mesh.h"
 #include "Renderer.h"
 #include "ShaderCode.h"
+
 #include <iostream>
 
 namespace rr {
 
-// Have the compiler check byte alignment
-static_assert(sizeof(MyUniforms) % 16 == 0);
+/**
+ * A structure that describes the data layout in the vertex buffer
+ * We do not instantiate it but use it in `sizeof` and `offsetof`
+ */
+struct VertexAttributes {
+    glm::vec3 position;
+    glm::vec3 normal;
+    glm::vec3 bary;
+    glm::vec3 edge_mask;
+};
 
-std::vector<VertexAttributes> convert_to_vertex_attributes(const std::vector<glm::vec3>& positions,
-                                                           /* const std::vector<glm::vec3>& normals,
-                                                           const std::vector<glm::vec3>& colors,*/
-                                                           const std::vector<std::array<int, 3>>& triangles) {
+std::vector<VertexAttributes> create_vertex_attributes(const Mesh& mesh) {
+    std::vector<VertexAttributes> vertex_attributes;
+    vertex_attributes.reserve(3 * mesh.num_faces());
 
-    std::vector<VertexAttributes> vertex_attributes(3 * triangles.size());
-    for (size_t i = 0; i < triangles.size(); i++) {
-        glm::vec3 pts[3] = {positions[triangles[i][0]], positions[triangles[i][1]], positions[triangles[i][2]]};
-        glm::vec3 normal = glm::cross(pts[1] - pts[0], pts[2] - pts[0]);
-        normal           = glm::normalize(normal);
-        for (int j = 0; j < 3; j++) {
-            glm::vec3 bary(0.0f);
-            bary[j]                               = 1.0f;
-            vertex_attributes[3 * i + j].position = pts[j];
-            vertex_attributes[3 * i + j].normal   = normal;
-            vertex_attributes[3 * i + j].bary     = bary;
+    assert(!mesh.normal_faces.empty());
+
+    size_t num_faces = mesh.num_faces();
+    for (size_t i = 0; i < num_faces; ++i) {
+        const auto& f = mesh.position_faces[i];
+        const auto& nf = mesh.normal_faces[i];
+
+        // For faces with more than 3 vertices, we need to triangulate
+        // We use fan triangulation: connect first vertex to all other vertices in sequence
+        size_t num_triangles = f.size() - 2;  // Number of triangles after fan triangulation
+
+        for (size_t j = 0; j < num_triangles; ++j) {
+            // For each triangle in the fan, we need to determine which edges are real
+            // and which are internal triangulation edges
+
+            // A triangle has vertices: center(0), j+1, j+2
+            // An edge is real if:
+            // - It's part of the original face boundary
+            // - For fan triangulation, this means either:
+            //   a) It connects to consecutive vertices in the original face
+            //   b) It's the first or last edge connected to the center vertex
+
+            glm::vec3 edge_mask(1.0f);  // Start with all edges masked (internal)
+
+            // Edge bc (between vertices j+1 and j+2)
+            // This is a real edge if j+1 and j+2 were consecutive in original face
+            edge_mask[0] = 0.0f;  // bc is always a real edge in the original face
+
+            // Edge ca (between vertex j+2 and center)
+            // This is a real edge if it's the last triangle in the fan
+            if (j == num_triangles - 1) {
+                edge_mask[1] = 0.0f;  // Last edge back to center is real
+            }
+
+            // Edge ab (between center and vertex j+1)
+            // This is a real edge if it's the first triangle in the fan
+            if (j == 0) {
+                edge_mask[2] = 0.0f;  // First edge from center is real
+            }
+
+            // Add the three vertices for this triangle
+            // Center vertex (same for all triangles in the fan)
+            vertex_attributes.push_back({
+                mesh.positions[f[0]],
+                mesh.normals[nf[0]],
+                glm::vec3(1.0f, 0.0f, 0.0f),  // Barycentric coordinates (1,0,0)
+                edge_mask
+            });
+
+            // First edge vertex
+            vertex_attributes.push_back({
+                mesh.positions[f[j + 1]],
+                mesh.normals[nf[j + 1]],
+                glm::vec3(0.0f, 1.0f, 0.0f),  // Barycentric coordinates (0,1,0)
+                edge_mask
+            });
+
+            // Second edge vertex
+            vertex_attributes.push_back({
+                mesh.positions[f[j + 2]],
+                mesh.normals[nf[j + 2]],
+                glm::vec3(0.0f, 0.0f, 1.0f),  // Barycentric coordinates (0,0,1)
+                edge_mask
+            });
         }
     }
 
     return vertex_attributes;
 }
 
-Mesh::Mesh(const std::vector<glm::vec3>& positions, const std::vector<std::array<int, 3>>& triangles,
-           const Renderer& renderer)
-    : Drawable(&renderer, BoundingBox(positions)) {
-    m_vertex_attributes = convert_to_vertex_attributes(positions, triangles);
-    configure_render_pipeline(m_vertex_attributes, renderer);
+RenderMesh::RenderMesh(const Mesh& mesh, const Renderer& renderer)
+    : Drawable(&renderer, BoundingBox(mesh.positions)), m_mesh(mesh) {
+
+    configure_render_pipeline();
 }
 
-Mesh::~Mesh() {
+RenderMesh::~RenderMesh() {
     // Release resources
     wgpuBufferDestroy(m_vertexBuffer);
     wgpuBufferRelease(m_vertexBuffer);
@@ -93,12 +154,15 @@ WGPUShaderModule createShaderModule(WGPUDevice device, const char* shaderSource)
     return shaderModule;
 }
 
-void Mesh::configure_render_pipeline(const std::vector<VertexAttributes>& vertex_attributes, const Renderer& renderer) {
+void RenderMesh::configure_render_pipeline() {
+    const Renderer&               renderer          = *m_renderer;
+    std::vector<VertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
+    m_num_attr_verts                                = vertex_attributes.size();
 
     WGPUShaderModule shaderModule = createShaderModule(renderer.m_device, shaderCode);
 
     // Vertex fetch
-    std::vector<WGPUVertexAttribute> vertexAttribs(3);
+    std::vector<WGPUVertexAttribute> vertexAttribs(4);
 
     // Position attribute
     vertexAttribs[0].shaderLocation = 0;
@@ -110,10 +174,15 @@ void Mesh::configure_render_pipeline(const std::vector<VertexAttributes>& vertex
     vertexAttribs[1].format         = WGPUVertexFormat_Float32x3;
     vertexAttribs[1].offset         = offsetof(VertexAttributes, normal);
 
-    // Color attribute
+    // Bary attribute
     vertexAttribs[2].shaderLocation = 2;
     vertexAttribs[2].format         = WGPUVertexFormat_Float32x3;
     vertexAttribs[2].offset         = offsetof(VertexAttributes, bary);
+
+    // Edge mask attribute
+    vertexAttribs[3].shaderLocation = 3;
+    vertexAttribs[3].format         = WGPUVertexFormat_Float32x3;
+    vertexAttribs[3].offset         = offsetof(VertexAttributes, edge_mask);
 
     WGPUVertexBufferLayout vertexBufferLayout = {};
     vertexBufferLayout.attributeCount         = (uint32_t)vertexAttribs.size();
@@ -195,7 +264,6 @@ void Mesh::configure_render_pipeline(const std::vector<VertexAttributes>& vertex
 
     // Create vertex buffer
     WGPUBufferDescriptor bufferDesc = {};
-    m_vertex_attributes             = vertex_attributes;
     bufferDesc.size                 = vertex_attributes.size() * sizeof(VertexAttributes);
     bufferDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
     bufferDesc.mappedAtCreation     = false;
@@ -226,17 +294,17 @@ void Mesh::configure_render_pipeline(const std::vector<VertexAttributes>& vertex
     wgpuShaderModuleRelease(shaderModule);
 }
 
-void Mesh::draw(WGPURenderPassEncoder render_pass) {
+void RenderMesh::draw(WGPURenderPassEncoder render_pass) {
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertexBuffer, 0,
-                                         m_vertex_attributes.size() * sizeof(VertexAttributes));
+                                         m_num_attr_verts * sizeof(VertexAttributes));
 
     // Set binding group
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
-    wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_vertex_attributes.size()), 1, 0, 0);
+    wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_num_attr_verts), 1, 0, 0);
 }
 
-void Mesh::on_camera_update() {
+void RenderMesh::on_camera_update() {
     m_uniforms.viewMatrix = m_renderer->m_camera.transform();
 
     m_uniforms.modelMatrix = glm::mat4(1.0f);

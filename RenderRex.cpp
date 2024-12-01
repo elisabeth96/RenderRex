@@ -46,9 +46,21 @@ void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<
     }
 }
 
-void register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<int, 3>>& triangles) {
+void register_mesh(std::string name, const std::vector<glm::vec3>& positions,
+                   const std::vector<std::array<uint32_t, 3>>& triangles) {
+    Mesh      mesh(positions, triangles);
+    register_mesh(name, mesh);
+}
+
+void register_mesh(std::string name, const Mesh& mesh) {
     Renderer& renderer = Renderer::get();
-    renderer.register_mesh(name, positions, triangles);
+    if (mesh.normal_faces.empty()) {
+        Mesh m(mesh);
+        create_flat_normals(m);
+        renderer.register_mesh(name, m);
+    } else {
+        renderer.register_mesh(name, mesh);
+    }
 }
 
 } // namespace rr

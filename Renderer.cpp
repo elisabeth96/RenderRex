@@ -205,23 +205,22 @@ Renderer& Renderer::get() {
     return instance;
 }
 
-void Renderer::register_mesh(std::string name, std::vector<glm::vec3>& positions,
-                             std::vector<std::array<int, 3>>& triangles) {
+void Renderer::register_mesh(std::string name, const Mesh& mesh) {
     // create a unique pointer for the mesh
-    std::unique_ptr<Mesh> mesh = std::make_unique<Mesh>(positions, triangles, *this);
-    m_drawables[name] = std::move(mesh);
+    std::unique_ptr<RenderMesh> rm = std::make_unique<RenderMesh>(mesh, *this);
+    m_drawables[name]              = std::move(rm);
 
     BoundingBox global_bb{};
-    for(auto& drawable : m_drawables) {
+    for (auto& drawable : m_drawables) {
         global_bb.expand_to_include(drawable.second->m_bbox);
     }
 
-    glm::vec3 current_eye = m_camera.eye();
+    glm::vec3 current_eye    = m_camera.eye();
     glm::vec3 current_center = m_camera.center();
-    glm::vec3 center = (global_bb.lower + global_bb.upper) * 0.5f;
-    glm::vec3 offset = current_eye - current_center;
-    glm::vec3 new_eye = center + offset;
-    m_camera = Camera(new_eye, center, m_camera.up());
+    glm::vec3 center         = (global_bb.lower + global_bb.upper) * 0.5f;
+    glm::vec3 offset         = current_eye - current_center;
+    glm::vec3 new_eye        = center + offset;
+    m_camera                 = Camera(new_eye, center, m_camera.up());
     on_camera_update();
 }
 
@@ -368,15 +367,14 @@ void Renderer::on_camera_update() {
     }
 }
 
-glm::vec2 transform_mouse(glm::vec2 in, uint32_t width, uint32_t height)
-{
+glm::vec2 transform_mouse(glm::vec2 in, uint32_t width, uint32_t height) {
     return {in.x * 2.f / float(width) - 1.f, 1.f - 2.f * in.y / float(height)};
 }
 
 void Renderer::onMouseMove(double xpos, double ypos) {
     if (m_drag.active) {
         glm::vec2 current_pos = transform_mouse({xpos, ypos}, m_width, m_height);
-        glm::vec2 last_pos = m_drag.last_pos;
+        glm::vec2 last_pos    = m_drag.last_pos;
 
         if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             m_camera.rotate(last_pos, current_pos);

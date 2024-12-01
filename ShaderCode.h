@@ -5,14 +5,16 @@ struct VertexInput {
         @location(0) position: vec3f,
         @location(1) normal: vec3f,
         @location(2) bary: vec3f,
+        @location(3) edge_mask: vec3f,
 };
 
 struct VertexOutput {
         @builtin(position) position: vec4f,
         @location(0) bary: vec3f,
-        @location(1) normal: vec3f,
-        @location(2) world_pos: vec3f,    // For light calculations
-        @location(3) view_pos: vec3f,     // For view-dependent effects
+        @location(1) edge_mask: vec3f,
+        @location(2) normal: vec3f,
+        @location(3) world_pos: vec3f,    // For light calculations
+        @location(4) view_pos: vec3f,     // For view-dependent effects
 };
 
 struct MyUniforms {
@@ -45,6 +47,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
         out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * modelPos;
         out.normal = normalize((uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
         out.bary = in.bary;
+        out.edge_mask = in.edge_mask;
         out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
         return out;
 }
@@ -127,7 +130,8 @@ fn fs_main(in: VertexOutput) -> @location(0) vec4f {
 
         let d = fwidth(in.bary);
         let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
-        let nearest = min(min(factor.x, factor.y), factor.z);
+        let factor_masked = max(factor, in.edge_mask);
+        let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
         let color = mix(wireframe_color, frag_color, nearest);
 
         // Tone mapping and gamma correction
