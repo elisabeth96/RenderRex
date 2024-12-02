@@ -40,18 +40,18 @@ public:
     void initialize_arrows(const std::vector<glm::vec3>& vectors, const std::vector<glm::vec3>& face_centers);
 
     glm::vec3 m_color = glm::vec3(0.882, 0.902, 0.376);
-
     // Note that radius and length are not absolute but with respect to m_scale.
     float m_scale  = 0.f;
     float m_radius = 1.f;
     float m_length = 1.f;
 
+    bool m_instance_data_dirty = true;
+
     std::vector<glm::mat4> m_transforms;
-    std::vector<glm::mat4> m_rotations;
-    std::vector<glm::vec3> m_translations;
+    std::vector<glm::mat4> m_rigid;
     std::vector<float>     m_vector_lengths;
 
-    void update_transforms();
+    void update_instance_data();
 
     std::unique_ptr<InstancedMesh> m_arrows;
 };

@@ -39,11 +39,11 @@ void callback() {
 
 int main() {
     // TODO: with the current system this generates too much geometry
-    // std::string path  = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
-    // rr::Mesh spot = rr::load_mesh(path);
+    std::string path  = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
+    rr::Mesh spot = rr::load_mesh(path);
 
-    std::stringstream mesh_data(spot_data);
-    rr::Mesh          spot = rr::load_mesh(mesh_data);
+    //std::stringstream mesh_data(spot_data);
+    //rr::Mesh          spot = rr::load_mesh(mesh_data);
     rr::VisualMesh*   vm   = rr::make_visual("spot", spot);
     fa                     = vm->add_face_attribute("face normals", compute_face_normals(spot));
     rr::set_user_callback(callback);

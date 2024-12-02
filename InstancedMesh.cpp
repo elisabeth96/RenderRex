@@ -364,13 +364,12 @@ void InstancedMesh::configure_render_pipeline() {
     on_camera_update();
 }
 
-void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
-
-    // TODO: Have a dirty flag so we don't update the instance buffer all the time
-    // Update instance buffer with current transforms and colors
+void InstancedMesh::upload_instance_data() {
     wgpuQueueWriteBuffer(m_renderer->m_queue, m_instanceBuffer, 0, m_instance_data.data(),
                          m_instance_data.size() * sizeof(InstanceData));
+}
 
+void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
 
     // Bind vertex buffer to slot 0

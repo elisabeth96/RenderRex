@@ -113,8 +113,8 @@ void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors
 
     // Cache transform components
     size_t n = vectors.size();
-    m_rotations.resize(n);
-    m_translations = face_centers; // Already computed face centers
+    m_rigid.resize(n);
+    // m_translations = face_centers; // Already computed face centers
     m_vector_lengths.resize(n);
     m_transforms.resize(n);
 
@@ -137,28 +137,35 @@ void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors
             angle = acos(glm::dot(y, v_normalized));
         }
 
-        m_rotations[i] = glm::rotate(angle, axis);
+        m_rigid[i] = glm::translate(face_centers[i]) * glm::rotate(angle, axis);
     }
 
-    // Initialize transforms
-    update_transforms();
+    m_instance_data_dirty = true;
 }
 
-void FaceVectorProperty::update_transforms() {
+void FaceVectorProperty::update_instance_data() {
     for (size_t i = 0; i < m_vector_lengths.size(); ++i) {
         float length_scale = m_vector_lengths[i] * m_scale * m_length;
         float radius_scale = m_radius * m_scale;
 
-        glm::mat4 scale_matrix = glm::scale(glm::vec3(radius_scale, length_scale, radius_scale));
-        m_transforms[i]        = glm::translate(m_translations[i]) * m_rotations[i] * scale_matrix;
+        glm::vec3 s(radius_scale, length_scale, radius_scale);
+        m_transforms[i] = m_rigid[i];
+        m_transforms[i][0] *= s.x;
+        m_transforms[i][1] *= s.y;
+        m_transforms[i][2] *= s.z;
     }
 
-    m_arrows->set_transforms(m_transforms);
+    m_arrows->set_instance_data(m_transforms, m_color);
 }
 
 FaceVectorProperty::~FaceVectorProperty() = default;
 
 void FaceVectorProperty::draw(WGPURenderPassEncoder pass) {
+    if (m_instance_data_dirty) {
+        update_instance_data();
+        m_arrows->upload_instance_data();
+        m_instance_data_dirty = false;
+    }
     m_arrows->draw(pass);
 }
 
@@ -167,18 +174,18 @@ void FaceVectorProperty::on_camera_update() {
 }
 
 void FaceVectorProperty::set_color(const glm::vec3& color) {
-    m_color = color;
-    m_arrows->set_color(glm::vec4(m_color, 1.0f));
+    m_color               = color;
+    m_instance_data_dirty = true;
 }
 
 void FaceVectorProperty::set_radius(float radius) {
-    m_radius = radius;
-    update_transforms();
+    m_radius              = radius;
+    m_instance_data_dirty = true;
 }
 
 void FaceVectorProperty::set_length(float length) {
-    m_length = length;
-    update_transforms();
+    m_length              = length;
+    m_instance_data_dirty = true;
 }
 
 } // namespace rr
