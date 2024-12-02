@@ -20,24 +20,37 @@ Mesh create_box() {
     mesh.positions.emplace_back(0.5f, 0.5f, -0.5f);   // 6: back top right
     mesh.positions.emplace_back(-0.5f, 0.5f, -0.5f);  // 7: back top left
 
-    // Define the 6 faces as quads (4 vertices each)
+    // Define the 6 normals (one for each face)
+    mesh.normals.emplace_back(0.0f, 0.0f, 1.0f);  // 0: front normal (+Z)
+    mesh.normals.emplace_back(0.0f, 0.0f, -1.0f); // 1: back normal (-Z)
+    mesh.normals.emplace_back(0.0f, 1.0f, 0.0f);  // 2: top normal (+Y)
+    mesh.normals.emplace_back(0.0f, -1.0f, 0.0f); // 3: bottom normal (-Y)
+    mesh.normals.emplace_back(1.0f, 0.0f, 0.0f);  // 4: right normal (+X)
+    mesh.normals.emplace_back(-1.0f, 0.0f, 0.0f); // 5: left normal (-X)
+
     // Front face (CCW)
     mesh.position_faces.push_back({0, 1, 2, 3});
+    mesh.normal_faces.push_back({0, 0, 0, 0}); // All vertices use front normal
 
     // Back face (CCW)
     mesh.position_faces.push_back({5, 4, 7, 6});
+    mesh.normal_faces.push_back({1, 1, 1, 1}); // All vertices use back normal
 
     // Top face (CCW)
     mesh.position_faces.push_back({3, 2, 6, 7});
+    mesh.normal_faces.push_back({2, 2, 2, 2}); // All vertices use top normal
 
     // Bottom face (CCW)
     mesh.position_faces.push_back({4, 5, 1, 0});
+    mesh.normal_faces.push_back({3, 3, 3, 3}); // All vertices use bottom normal
 
     // Right face (CCW)
     mesh.position_faces.push_back({1, 5, 6, 2});
+    mesh.normal_faces.push_back({4, 4, 4, 4}); // All vertices use right normal
 
     // Left face (CCW)
     mesh.position_faces.push_back({4, 0, 3, 7});
+    mesh.normal_faces.push_back({5, 5, 5, 5}); // All vertices use left normal
 
     return mesh;
 }

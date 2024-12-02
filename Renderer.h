@@ -6,6 +6,7 @@
 #include <webgpu/webgpu.h>
 
 #include <array>
+#include <functional>
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -14,7 +15,7 @@
 namespace rr {
 
 class Drawable;
-class RenderMesh;
+class VisualMesh;
 struct Mesh;
 
 class Renderer {
@@ -53,7 +54,9 @@ public:
 
     static Renderer& get();
 
-    RenderMesh* register_mesh(std::string name, const Mesh& mesh);
+    Drawable* register_drawable(std::string_view name, std::unique_ptr<Drawable> drawable);
+
+    void set_user_callback(std::function<void()> callback);
 
     // Mouse events
     void onMouseMove(double xpos, double ypos);
@@ -75,6 +78,8 @@ private:
     WGPUSurface m_surface;
 
     std::unordered_map<std::string, std::unique_ptr<Drawable>> m_drawables;
+
+    std::function<void()> m_user_callback;
 };
 
 } // namespace rr

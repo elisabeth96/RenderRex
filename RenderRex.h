@@ -1,13 +1,16 @@
 // contains all the unser interface funtions for the renderrex library
 #pragma once
 
-#include "Mesh.h"
 #include "Drawable.h"
+#include "InstancedMesh.h"
+#include "Mesh.h"
 #include "Primitives.h"
+#include "VisualMesh.h"
 
 #include "glm/glm.hpp"
 
 #include <array>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -17,12 +20,13 @@ namespace rr {
 // for now, just creates a window and displays a nice color
 void show();
 
-void load_mesh(std::string path, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles);
+VisualMesh* make_visual(std::string name, std::vector<glm::vec3>& positions,
+                        std::vector<std::array<uint32_t, 3>>& triangles);
 
-Mesh load_mesh(std::string path);
+VisualMesh* make_visual(std::string name, const Mesh& mesh);
 
-RenderMesh* register_mesh(std::string name, std::vector<glm::vec3>& positions, std::vector<std::array<uint32_t, 3>>& triangles);
+InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances);
 
-RenderMesh* register_mesh(std::string name, const Mesh& mesh);
+void set_user_callback(std::function<void()> callback);
 
 } // namespace rr

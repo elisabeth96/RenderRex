@@ -19,7 +19,6 @@ add_executable(RenderRex
 		RenderRex.h
 		RenderRex.cpp
 		Drawable.h
-		Drawable.cpp
 		Renderer.h
 		Renderer.cpp
 		Camera.h
@@ -28,9 +27,24 @@ add_executable(RenderRex
 		Primitives.cpp
 		Mesh.h
 		Mesh.cpp
+		VisualMesh.h
+		VisualMesh.cpp
+		InstancedMesh.h
+		InstancedMesh.cpp
+		MeshIO.h
+		MeshIO.cpp
+		spot.cpp
 )
 
 target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)
+
+#enable asan
+#target_compile_options(RenderRex PRIVATE -fsanitize=address)
+#target_link_options(RenderRex PRIVATE -fsanitize=address)
+
+#enable udefined behavior sanitizer
+#target_compile_options(RenderRex PRIVATE -fsanitize=undefined)
+#target_link_options(RenderRex PRIVATE -fsanitize=undefined)
 
 target_copy_webgpu_binaries(RenderRex)
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cassert>
 #include <cstring>
 #include <initializer_list>
 #include <stdexcept>
@@ -181,9 +182,11 @@ public:
     }
 
     T& operator[](size_t index) {
+        assert(index < size_);
         return data_ptr[index];
     }
     const T& operator[](size_t index) const {
+        assert(index < size_);
         return data_ptr[index];
     }
 

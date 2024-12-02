@@ -161,6 +161,10 @@ WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView nextTexture, 
 void Renderer::update_frame() {
     glfwPollEvents();
 
+    if (m_user_callback) {
+        m_user_callback();
+    }
+
     WGPUTextureView nextTexture = wgpuSwapChainGetCurrentTextureView(m_swapChain);
     if (!nextTexture) {
         std::cerr << "Cannot acquire next swap chain texture" << std::endl;
@@ -205,16 +209,13 @@ Renderer& Renderer::get() {
     return instance;
 }
 
-RenderMesh* Renderer::register_mesh(std::string name, const Mesh& mesh) {
-    // create a unique pointer for the mesh
-    std::unique_ptr<RenderMesh> rm = std::make_unique<RenderMesh>(mesh, *this);
-
-    auto& slot = m_drawables[name];
-    slot       = std::move(rm);
+Drawable* Renderer::register_drawable(std::string_view name, std::unique_ptr<Drawable> drawable) {
+    auto& slot = m_drawables[std::string(name)];
+    slot       = std::move(drawable);
 
     BoundingBox global_bb{};
-    for (auto& drawable : m_drawables) {
-        global_bb.expand_to_include(drawable.second->m_bbox);
+    for (auto& p : m_drawables) {
+        global_bb.expand_to_include(p.second->m_bbox);
     }
 
     glm::vec3 current_eye    = m_camera.eye();
@@ -225,7 +226,11 @@ RenderMesh* Renderer::register_mesh(std::string name, const Mesh& mesh) {
     m_camera                 = Camera(new_eye, center, m_camera.up());
     on_camera_update();
 
-    return dynamic_cast<RenderMesh*>(slot.get());
+    return slot.get();
+}
+
+void Renderer::set_user_callback(std::function<void()> callback) {
+    m_user_callback = std::move(callback);
 }
 
 void Renderer::initialize_depth_texture() { // Create the depth texture

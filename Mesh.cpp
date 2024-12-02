@@ -130,6 +130,8 @@ void set_smooth_normals(Mesh& mesh) {
         for (uint32_t i : face) {
             mesh.normals[i] += face_normal;
         }
+
+        mesh.normal_faces[f] = face;
     }
 
     for (size_t i = 0; i < mesh.normals.size(); ++i) {

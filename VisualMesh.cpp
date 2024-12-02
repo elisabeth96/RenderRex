@@ -1,6 +1,5 @@
-// contains all the unser interface funtions for the renderrex library
+#include "VisualMesh.h"
 
-#include "Drawable.h"
 #include "Camera.h"
 #include "Mesh.h"
 #include "Primitives.h"
@@ -15,15 +14,15 @@ namespace rr {
  * A structure that describes the data layout in the vertex buffer
  * We do not instantiate it but use it in `sizeof` and `offsetof`
  */
-struct VertexAttributes {
+struct VisualMeshVertexAttributes {
     glm::vec3 position;
     glm::vec3 normal;
     glm::vec3 bary;
     glm::vec3 edge_mask;
 };
 
-std::vector<VertexAttributes> create_vertex_attributes(const Mesh& mesh) {
-    std::vector<VertexAttributes> vertex_attributes;
+static std::vector<VisualMeshVertexAttributes> create_vertex_attributes(const Mesh& mesh) {
+    std::vector<VisualMeshVertexAttributes> vertex_attributes;
     vertex_attributes.reserve(3 * mesh.num_faces());
 
     assert(!mesh.normal_faces.empty());
@@ -87,13 +86,13 @@ std::vector<VertexAttributes> create_vertex_attributes(const Mesh& mesh) {
     return vertex_attributes;
 }
 
-RenderMesh::RenderMesh(const Mesh& mesh, const Renderer& renderer)
+VisualMesh::VisualMesh(const Mesh& mesh, const Renderer& renderer)
     : Drawable(&renderer, BoundingBox(mesh.positions)), m_mesh(mesh) {
 
     configure_render_pipeline();
 }
 
-void RenderMesh::release() {
+void VisualMesh::release() {
     // Release resources
     if (m_vertexBuffer == nullptr) {
         return;
@@ -106,7 +105,7 @@ void RenderMesh::release() {
     wgpuRenderPipelineRelease(m_pipeline);
 }
 
-RenderMesh::~RenderMesh() {
+VisualMesh::~VisualMesh() {
     release();
 }
 
@@ -153,15 +152,20 @@ WGPUShaderModule createShaderModule(WGPUDevice device, const char* shaderSource)
     return shaderModule;
 }
 
-void RenderMesh::configure_render_pipeline() {
+void VisualMesh::configure_render_pipeline() {
     release();
     const Renderer& renderer = *m_renderer;
 
-    std::vector<VertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
+    std::vector<VisualMeshVertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
 
+    auto start = std::chrono::high_resolution_clock::now();
     for (auto& attribute : m_attributes) {
         attribute.second->generate_attributes(vertex_attributes);
     }
+    auto end = std::chrono::high_resolution_clock::now();
+    // print time in double ms
+    std::chrono::duration<double, std::milli> dt = end - start;
+    printf("Attribute Generation Time: %f\n", dt.count());
 
     m_num_attr_verts = vertex_attributes.size();
 
@@ -178,22 +182,22 @@ void RenderMesh::configure_render_pipeline() {
     // Normal attribute
     vertexAttribs[1].shaderLocation = 1;
     vertexAttribs[1].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[1].offset         = offsetof(VertexAttributes, normal);
+    vertexAttribs[1].offset         = offsetof(VisualMeshVertexAttributes, normal);
 
     // Bary attribute
     vertexAttribs[2].shaderLocation = 2;
     vertexAttribs[2].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[2].offset         = offsetof(VertexAttributes, bary);
+    vertexAttribs[2].offset         = offsetof(VisualMeshVertexAttributes, bary);
 
     // Edge mask attribute
     vertexAttribs[3].shaderLocation = 3;
     vertexAttribs[3].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[3].offset         = offsetof(VertexAttributes, edge_mask);
+    vertexAttribs[3].offset         = offsetof(VisualMeshVertexAttributes, edge_mask);
 
     WGPUVertexBufferLayout vertexBufferLayout = {};
     vertexBufferLayout.attributeCount         = (uint32_t)vertexAttribs.size();
     vertexBufferLayout.attributes             = vertexAttribs.data();
-    vertexBufferLayout.arrayStride            = sizeof(VertexAttributes);
+    vertexBufferLayout.arrayStride            = sizeof(VisualMeshVertexAttributes);
 
     vertexBufferLayout.stepMode = WGPUVertexStepMode_Vertex;
 
@@ -253,7 +257,7 @@ void RenderMesh::configure_render_pipeline() {
     bindingLayout.binding                  = 0;
     bindingLayout.visibility               = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
     bindingLayout.buffer.type              = WGPUBufferBindingType_Uniform;
-    bindingLayout.buffer.minBindingSize    = sizeof(MyUniforms);
+    bindingLayout.buffer.minBindingSize    = sizeof(VisualMeshUniforms);
 
     // Create a bind group layout
     WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc{};
@@ -270,14 +274,14 @@ void RenderMesh::configure_render_pipeline() {
 
     // Create vertex buffer
     WGPUBufferDescriptor bufferDesc = {};
-    bufferDesc.size                 = vertex_attributes.size() * sizeof(VertexAttributes);
+    bufferDesc.size                 = vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
     bufferDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
     bufferDesc.mappedAtCreation     = false;
     m_vertexBuffer                  = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
     wgpuQueueWriteBuffer(renderer.m_queue, m_vertexBuffer, 0, vertex_attributes.data(), bufferDesc.size);
 
     // Create uniform buffer
-    bufferDesc.size             = sizeof(MyUniforms);
+    bufferDesc.size             = sizeof(VisualMeshUniforms);
     bufferDesc.usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
     bufferDesc.mappedAtCreation = false;
     m_uniformBuffer             = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
@@ -287,7 +291,7 @@ void RenderMesh::configure_render_pipeline() {
     binding.binding = 0;
     binding.buffer  = m_uniformBuffer;
     binding.offset  = 0;
-    binding.size    = sizeof(MyUniforms);
+    binding.size    = sizeof(VisualMeshUniforms);
 
     // A bind group contains one or multiple bindings
     WGPUBindGroupDescriptor bindGroupDesc = {};
@@ -305,17 +309,19 @@ void RenderMesh::configure_render_pipeline() {
     on_camera_update();
 }
 
-void RenderMesh::draw(WGPURenderPassEncoder render_pass) {
+void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertexBuffer, 0,
-                                         m_num_attr_verts * sizeof(VertexAttributes));
+                                         m_num_attr_verts * sizeof(VisualMeshVertexAttributes));
 
     // Set binding group
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
     wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_num_attr_verts), 1, 0, 0);
+
+    printf("Drawing %zu vertices\n", size_t(m_num_attr_verts));
 }
 
-void RenderMesh::on_camera_update() {
+void VisualMesh::on_camera_update() {
     m_uniforms.viewMatrix = m_renderer->m_camera.transform();
 
     m_uniforms.modelMatrix = glm::mat4(1.0f);
@@ -327,14 +333,14 @@ void RenderMesh::on_camera_update() {
     float fov                   = glm::radians(45.0f);
     m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
 
-    wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(MyUniforms));
+    wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
 }
 
-FaceVectorAttribute* RenderMesh::add_face_attribute(std::string name, const std::vector<glm::vec3>& vs) {
+FaceVectorAttribute* VisualMesh::add_face_attribute(std::string name, const std::vector<glm::vec3>& vs) {
     std::vector<glm::vec3> face_centers(m_mesh.num_faces());
 
     double average_edge_length = 0.0;
-    size_t total_edges = 0;  // Keep track of actual number of edges processed
+    size_t total_edges         = 0; // Keep track of actual number of edges processed
 
     for (size_t i = 0; i < m_mesh.num_faces(); ++i) {
         const auto& f = m_mesh.position_faces[i];
@@ -377,52 +383,52 @@ FaceVectorAttribute* RenderMesh::add_face_attribute(std::string name, const std:
     return dynamic_cast<FaceVectorAttribute*>(slot.get());
 }
 
-void FaceVectorAttribute::generate_attributes(std::vector<VertexAttributes>& vertex_attributes) {
+void FaceVectorAttribute::generate_attributes(std::vector<VisualMeshVertexAttributes>& vertex_attributes) {
     static Mesh cylinder = create_cylinder().triangulate();
-    static Mesh cone = create_cone().triangulate();
+    static Mesh cone     = create_cone().triangulate();
 
     // Scale factors for cylinder and cone
-    float vector_length = m_scale;
+    float vector_length   = m_scale;
     float cylinder_radius = 0.05f * vector_length;
     float cylinder_length = 0.7f * vector_length;  // Cylinder takes 70% of total length
-    float cone_radius = 0.15f * vector_length;     // Cone is wider than cylinder
-    float cone_length = 0.3f * vector_length;      // Cone takes 30% of total length
+    float cone_radius     = 0.15f * vector_length; // Cone is wider than cylinder
+    float cone_length     = 0.3f * vector_length;  // Cone takes 30% of total length
 
     for (size_t i = 0; i < m_vectors.size(); ++i) {
-        glm::vec3 v = m_vectors[i];
-        float v_length = glm::length(v);
+        glm::vec3 v            = m_vectors[i];
+        float     v_length     = glm::length(v);
         glm::vec3 v_normalized = v / v_length;
-        glm::vec3 start = m_face_centers[i];
+        glm::vec3 start        = m_face_centers[i];
         glm::vec3 cylinder_end = start + v_normalized * cylinder_length;
 
         // Calculate rotation
         glm::vec3 y(0, 1, 0);
-        glm::vec3 axis = glm::cross(y, v_normalized);
-        float length = glm::length(axis);
-        float angle = 0.0f;
+        glm::vec3 axis   = glm::cross(y, v_normalized);
+        float     length = glm::length(axis);
+        float     angle  = 0.0f;
         if (length < 1e-6f) {
-            axis = glm::vec3(1, 0, 0);
+            axis  = glm::vec3(1, 0, 0);
             angle = (v_normalized.y < 0) ? glm::pi<float>() : 0.0f;
         } else {
-            axis = axis / length;
+            axis  = axis / length;
             angle = acos(glm::dot(y, v_normalized));
         }
         glm::mat3 rot(glm::angleAxis(angle, axis));
 
         // Draw cylinder - offset the position by half the cylinder length to start from face center
         glm::mat4 cylinder_scale = glm::scale(glm::vec3(cylinder_radius, cylinder_length, cylinder_radius));
-        glm::vec3 cylinder_pos = start + v_normalized * (cylinder_length * 0.5f);
-        glm::mat4 cylinder_tf = glm::translate(cylinder_pos) * glm::rotate(angle, axis) * cylinder_scale;
+        glm::vec3 cylinder_pos   = start + v_normalized * (cylinder_length * 0.5f);
+        glm::mat4 cylinder_tf    = glm::translate(cylinder_pos) * glm::rotate(angle, axis) * cylinder_scale;
 
         for (size_t j = 0; j < cylinder.num_faces(); ++j) {
-            const auto& f = cylinder.position_faces[j];
+            const auto& f  = cylinder.position_faces[j];
             const auto& nf = cylinder.normal_faces[j];
             assert(f.size() == 3);
             for (size_t k = 0; k < 3; ++k) {
                 glm::vec3 p = cylinder.positions[f[k]];
-                p = glm::vec3(cylinder_tf * glm::vec4(p, 1));
+                p           = glm::vec3(cylinder_tf * glm::vec4(p, 1));
                 glm::vec3 n = cylinder.normals[nf[k]];
-                n = rot * n;
+                n           = rot * n;
                 glm::vec3 b(1);
                 glm::vec3 mask(1);
                 vertex_attributes.push_back({p, n, b, mask});
@@ -433,17 +439,17 @@ void FaceVectorAttribute::generate_attributes(std::vector<VertexAttributes>& ver
         glm::mat4 cone_scale = glm::scale(glm::vec3(cone_radius, cone_length, cone_radius));
         // Move cone up by half its length since it's also centered
         glm::vec3 cone_pos = cylinder_end + v_normalized * (cone_length * 0.5f);
-        glm::mat4 cone_tf = glm::translate(cone_pos) * glm::rotate(angle, axis) * cone_scale;
+        glm::mat4 cone_tf  = glm::translate(cone_pos) * glm::rotate(angle, axis) * cone_scale;
 
         for (size_t j = 0; j < cone.num_faces(); ++j) {
-            const auto& f = cone.position_faces[j];
+            const auto& f  = cone.position_faces[j];
             const auto& nf = cone.normal_faces[j];
             assert(f.size() == 3);
             for (size_t k = 0; k < 3; ++k) {
                 glm::vec3 p = cone.positions[f[k]];
-                p = glm::vec3(cone_tf * glm::vec4(p, 1));
+                p           = glm::vec3(cone_tf * glm::vec4(p, 1));
                 glm::vec3 n = cone.normals[nf[k]];
-                n = rot * n;
+                n           = rot * n;
                 glm::vec3 b(1);
                 glm::vec3 mask(1);
                 vertex_attributes.push_back({p, n, b, mask});
