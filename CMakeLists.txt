@@ -33,6 +33,8 @@ add_executable(RenderRex
 		InstancedMesh.cpp
 		MeshIO.h
 		MeshIO.cpp
+		Property.h
+		Property.cpp
 		spot.cpp
 )
 

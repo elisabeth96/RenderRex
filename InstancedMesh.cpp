@@ -47,7 +47,7 @@ static std::vector<InstancedMeshVertexAttributes> create_vertex_attributes(const
     return vertex_attributes;
 }
 
-InstancedMesh::InstancedMesh(Mesh mesh, size_t num_instances, const Renderer& renderer)
+InstancedMesh::InstancedMesh(const Mesh& mesh, size_t num_instances, const Renderer& renderer)
     : Drawable(&renderer, BoundingBox(mesh.positions)), m_mesh(mesh),
       m_instance_data(num_instances, InstanceData{glm::mat4(1.0f), glm::vec4(0.5, 0.5, 0.5, 1.0f)}) {
 
@@ -186,173 +186,6 @@ fn fs_main(@builtin(front_facing) is_front: bool, input: VertexOutput) -> @locat
     return vec4f(result, input.color.a);
 }
 )";
-
-/*
-const char* shaderCode = R"(
-struct VertexInput {
-    @location(0) position: vec3f,
-    @location(1) normal: vec3f,
-    @location(2) instance_transform_0: vec4f,
-    @location(3) instance_transform_1: vec4f,
-    @location(4) instance_transform_2: vec4f,
-    @location(5) instance_transform_3: vec4f,
-    @location(6) instance_color: vec4f,
-}
-
-struct VertexOutput {
-    @builtin(position) position: vec4f,
-    @location(0) world_normal: vec3f,
-    @location(1) color: vec4f,
-    @location(2) world_pos: vec3f,    // For light calculations
-    @location(3) view_pos: vec3f,     // For view-dependent effects
-}
-
-struct Uniforms {
-    projection_matrix: mat4x4f,
-    view_matrix: mat4x4f,
-}
-
-struct Light {
-    direction: vec3f,
-    color: vec3f,
-    intensity: f32,
-}
-
-struct Material {
-    ambient: f32,
-    diffuse: f32,
-    specular: f32,
-    shininess: f32,
-}
-
-@group(0) @binding(0)
-var<uniform> uniforms: Uniforms;
-
-// Extract rotation part of view matrix (upper 3x3)
-fn get_view_rotation(view_matrix: mat4x4f) -> mat3x3f {
-    return mat3x3f(
-        view_matrix[0].xyz,
-        view_matrix[1].xyz,
-        view_matrix[2].xyz
-    );
-}
-
-fn calculate_blinn_phong(normal: vec3f, light: Light, material: Material, view_dir: vec3f, world_pos: vec3f) -> vec3f {
-    let light_dir = normalize(light.direction);
-
-    // Ambient
-    let ambient = light.color * material.ambient;
-
-    // Diffuse
-    let diff = max(dot(-light_dir, normal), 0.0);
-    let diffuse = light.color * (diff * material.diffuse);
-
-    // Specular (Blinn-Phong)
-    let halfway_dir = normalize(-light_dir + view_dir);
-    let spec = pow(max(dot(normal, halfway_dir), 0.0), material.shininess);
-    let specular = light.color * (spec * material.specular);
-
-    return (ambient + diffuse + specular) * light.intensity;
-}
-
-fn aces_tone_mapping(color: vec3f) -> vec3f {
-    let a = 2.51;
-    let b = 0.03;
-    let c = 2.43;
-    let d = 0.59;
-    let e = 0.14;
-    return clamp((color * (a * color + b)) / (color * (c * color + d) + e), vec3f(0.0), vec3f(1.0));
-}
-
-@vertex
-fn vs_main(input: VertexInput) -> VertexOutput {
-    var output: VertexOutput;
-
-    let model_matrix = mat4x4f(
-        input.instance_transform_0,
-        input.instance_transform_1,
-        input.instance_transform_2,
-        input.instance_transform_3
-    );
-
-    let world_pos = model_matrix * vec4f(input.position, 1.0);
-    output.position = uniforms.projection_matrix * uniforms.view_matrix * world_pos;
-    output.world_pos = world_pos.xyz;
-    output.view_pos = (uniforms.view_matrix * world_pos).xyz;
-
-    // Transform normal to world space
-    output.world_normal = normalize((model_matrix * vec4f(input.normal, 0.0)).xyz);
-    output.color = input.instance_color;
-
-    return output;
-}
-
-@fragment
-fn fs_main(@builtin(front_facing) is_front: bool, input: VertexOutput) -> @location(0) vec4f {
-    // Flip the normal if we're looking at a back face
-    let normal = (f32(is_front) * 2.0 - 1.0) * normalize(input.world_normal);
-    let view_dir = normalize(-input.view_pos);
-
-    // Get view rotation to make lights camera-relative
-    let view_rotation = get_view_rotation(uniforms.view_matrix);
-
-    // Define material properties with reduced intensity
-    let material = Material(
-        0.1,    // ambient (reduced from 0.2)
-        0.5,    // diffuse (reduced from 0.7)
-        0.3,    // specular (reduced from 0.5)
-        32.0    // shininess (increased for tighter highlights)
-    );
-
-    // Camera-space light directions (transformed by view rotation)
-    let key_dir = -(view_rotation * vec3f(-0.5, -0.8, -0.5));
-    let fill_dir = -(view_rotation * vec3f(0.8, -0.2, 0.3));
-    let rim_dir = -(view_rotation * vec3f(-0.2, 0.5, 0.8));
-
-    // Key light (main illumination)
-    let keyLight = Light(
-        normalize(key_dir),            // camera-relative direction
-        vec3f(1.0, 0.98, 0.95),       // color (warm white)
-        0.5                           // intensity (reduced from 0.7)
-    );
-
-    // Fill light
-    let fillLight = Light(
-        normalize(fill_dir),           // camera-relative direction
-        vec3f(0.9, 0.9, 1.0),         // color (cool white)
-        0.25                          // intensity (reduced)
-    );
-
-    // Rim light
-    let rimLight = Light(
-        normalize(rim_dir),            // camera-relative direction
-        vec3f(1.0, 1.0, 1.0),         // color
-        0.15                          // intensity (reduced)
-    );
-
-    // Calculate lighting contributions
-    let key_contribution = calculate_blinn_phong(normal, keyLight, material, view_dir, input.world_pos);
-    let fill_contribution = calculate_blinn_phong(normal, fillLight, material, view_dir, input.world_pos);
-    let rim_contribution = calculate_blinn_phong(normal, rimLight, material, view_dir, input.world_pos);
-
-    // Edge enhancement using fresnel (reduced intensity)
-    let fresnel = pow(1.0 - abs(dot(normal, view_dir)), 3.0) * 0.1;  // reduced from 0.2
-
-    // Combine all lighting with instance color
-    let total_lighting = key_contribution + fill_contribution + rim_contribution;
-    let frag_color = input.color.rgb * total_lighting + fresnel;
-
-    // Additional intensity reduction before tone mapping
-    let reduced_intensity = frag_color * 0.8;  // Global intensity reduction
-
-    // Tone mapping and gamma correction
-    let mapped_color = aces_tone_mapping(reduced_intensity);
-    let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
-
-    return vec4f(corrected_color, input.color.a);
-}
-)";
- */
 
 void InstancedMesh::configure_render_pipeline() {
     release();
@@ -532,6 +365,8 @@ void InstancedMesh::configure_render_pipeline() {
 }
 
 void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
+
+    // TODO: Have a dirty flag so we don't update the instance buffer all the time
     // Update instance buffer with current transforms and colors
     wgpuQueueWriteBuffer(m_renderer->m_queue, m_instanceBuffer, 0, m_instance_data.data(),
                          m_instance_data.size() * sizeof(InstanceData));

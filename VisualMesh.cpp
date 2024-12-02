@@ -3,8 +3,10 @@
 #include "Camera.h"
 #include "Mesh.h"
 #include "Primitives.h"
+#include "Property.h"
 #include "Renderer.h"
 #include "ShaderCode.h"
+#include "InstancedMesh.h"
 
 #include <iostream>
 
@@ -158,15 +160,6 @@ void VisualMesh::configure_render_pipeline() {
 
     std::vector<VisualMeshVertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
 
-    auto start = std::chrono::high_resolution_clock::now();
-    for (auto& attribute : m_attributes) {
-        attribute.second->generate_attributes(vertex_attributes);
-    }
-    auto end = std::chrono::high_resolution_clock::now();
-    // print time in double ms
-    std::chrono::duration<double, std::milli> dt = end - start;
-    printf("Attribute Generation Time: %f\n", dt.count());
-
     m_num_attr_verts = vertex_attributes.size();
 
     WGPUShaderModule shaderModule = createShaderModule(renderer.m_device, shaderCode);
@@ -318,7 +311,9 @@ void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
     wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_num_attr_verts), 1, 0, 0);
 
-    printf("Drawing %zu vertices\n", size_t(m_num_attr_verts));
+    for (auto& [name, prop] : m_properties) {
+        prop->draw(render_pass);
+    }
 }
 
 void VisualMesh::on_camera_update() {
@@ -334,128 +329,18 @@ void VisualMesh::on_camera_update() {
     m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
 
     wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
+
+    // update properties
+        for (auto& [name, prop] : m_properties) {
+            prop->on_camera_update();
+        }
 }
 
-FaceVectorAttribute* VisualMesh::add_face_attribute(std::string name, const std::vector<glm::vec3>& vs) {
-    std::vector<glm::vec3> face_centers(m_mesh.num_faces());
-
-    double average_edge_length = 0.0;
-    size_t total_edges         = 0; // Keep track of actual number of edges processed
-
-    for (size_t i = 0; i < m_mesh.num_faces(); ++i) {
-        const auto& f = m_mesh.position_faces[i];
-
-        // Calculate face center
-        glm::vec3 center(0.0f);
-        for (size_t j = 0; j < f.size(); ++j) {
-            center += m_mesh.positions[f[j]];
-        }
-        center /= float(f.size());
-        face_centers[i] = center;
-
-        // Calculate length of each edge in the face
-        for (size_t j = 0; j < f.size(); ++j) {
-            // Get current vertex and next vertex (wrapping around)
-            const glm::vec3& p0 = m_mesh.positions[f[j]];
-            const glm::vec3& p1 = m_mesh.positions[f[(j + 1) % f.size()]];
-
-            // Calculate edge length
-            float edge_length = glm::length(p1 - p0);
-
-            // Update running average using Welford's algorithm
-            total_edges++;
-            double delta = edge_length - average_edge_length;
-            average_edge_length += delta / total_edges;
-        }
-    }
-
-    printf("Average edge length: %f\n", average_edge_length);
-
-    std::unique_ptr<FaceVectorAttribute> attribute = std::make_unique<FaceVectorAttribute>(vs);
-    attribute->m_face_centers                      = std::move(face_centers);
-    attribute->m_scale                             = 0.5f * float(average_edge_length);
-
-    auto& slot = m_attributes[name];
-    slot       = std::move(attribute);
-
-    configure_render_pipeline();
-
-    return dynamic_cast<FaceVectorAttribute*>(slot.get());
-}
-
-void FaceVectorAttribute::generate_attributes(std::vector<VisualMeshVertexAttributes>& vertex_attributes) {
-    static Mesh cylinder = create_cylinder().triangulate();
-    static Mesh cone     = create_cone().triangulate();
-
-    // Scale factors for cylinder and cone
-    float vector_length   = m_scale;
-    float cylinder_radius = 0.05f * vector_length;
-    float cylinder_length = 0.7f * vector_length;  // Cylinder takes 70% of total length
-    float cone_radius     = 0.15f * vector_length; // Cone is wider than cylinder
-    float cone_length     = 0.3f * vector_length;  // Cone takes 30% of total length
-
-    for (size_t i = 0; i < m_vectors.size(); ++i) {
-        glm::vec3 v            = m_vectors[i];
-        float     v_length     = glm::length(v);
-        glm::vec3 v_normalized = v / v_length;
-        glm::vec3 start        = m_face_centers[i];
-        glm::vec3 cylinder_end = start + v_normalized * cylinder_length;
-
-        // Calculate rotation
-        glm::vec3 y(0, 1, 0);
-        glm::vec3 axis   = glm::cross(y, v_normalized);
-        float     length = glm::length(axis);
-        float     angle  = 0.0f;
-        if (length < 1e-6f) {
-            axis  = glm::vec3(1, 0, 0);
-            angle = (v_normalized.y < 0) ? glm::pi<float>() : 0.0f;
-        } else {
-            axis  = axis / length;
-            angle = acos(glm::dot(y, v_normalized));
-        }
-        glm::mat3 rot(glm::angleAxis(angle, axis));
-
-        // Draw cylinder - offset the position by half the cylinder length to start from face center
-        glm::mat4 cylinder_scale = glm::scale(glm::vec3(cylinder_radius, cylinder_length, cylinder_radius));
-        glm::vec3 cylinder_pos   = start + v_normalized * (cylinder_length * 0.5f);
-        glm::mat4 cylinder_tf    = glm::translate(cylinder_pos) * glm::rotate(angle, axis) * cylinder_scale;
-
-        for (size_t j = 0; j < cylinder.num_faces(); ++j) {
-            const auto& f  = cylinder.position_faces[j];
-            const auto& nf = cylinder.normal_faces[j];
-            assert(f.size() == 3);
-            for (size_t k = 0; k < 3; ++k) {
-                glm::vec3 p = cylinder.positions[f[k]];
-                p           = glm::vec3(cylinder_tf * glm::vec4(p, 1));
-                glm::vec3 n = cylinder.normals[nf[k]];
-                n           = rot * n;
-                glm::vec3 b(1);
-                glm::vec3 mask(1);
-                vertex_attributes.push_back({p, n, b, mask});
-            }
-        }
-
-        // Draw cone - position should be at the end of the cylinder
-        glm::mat4 cone_scale = glm::scale(glm::vec3(cone_radius, cone_length, cone_radius));
-        // Move cone up by half its length since it's also centered
-        glm::vec3 cone_pos = cylinder_end + v_normalized * (cone_length * 0.5f);
-        glm::mat4 cone_tf  = glm::translate(cone_pos) * glm::rotate(angle, axis) * cone_scale;
-
-        for (size_t j = 0; j < cone.num_faces(); ++j) {
-            const auto& f  = cone.position_faces[j];
-            const auto& nf = cone.normal_faces[j];
-            assert(f.size() == 3);
-            for (size_t k = 0; k < 3; ++k) {
-                glm::vec3 p = cone.positions[f[k]];
-                p           = glm::vec3(cone_tf * glm::vec4(p, 1));
-                glm::vec3 n = cone.normals[nf[k]];
-                n           = rot * n;
-                glm::vec3 b(1);
-                glm::vec3 mask(1);
-                vertex_attributes.push_back({p, n, b, mask});
-            }
-        }
-    }
+FaceVectorProperty* VisualMesh::add_face_attribute(std::string_view name, const std::vector<glm::vec3>& vs) {
+    auto property = std::make_unique<FaceVectorProperty>(this, vs);
+    auto& slot = m_properties[std::string(name)];
+    slot       = std::move(property);
+    return dynamic_cast<FaceVectorProperty*>(slot.get());
 }
 
 } // namespace rr

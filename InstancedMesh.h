@@ -24,7 +24,7 @@ static_assert(sizeof(InstanceData) % 16 == 0);
 
 class InstancedMesh : public Drawable {
 public:
-    InstancedMesh(Mesh mesh, size_t num_instances, const Renderer& renderer);
+    InstancedMesh(const Mesh& mesh, size_t num_instances, const Renderer& renderer);
     ~InstancedMesh() override;
 
     void release();

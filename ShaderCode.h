@@ -2,19 +2,19 @@
 
 const char* shaderCode = R"shader(
 struct VertexInput {
-        @location(0) position: vec3f,
-        @location(1) normal: vec3f,
-        @location(2) bary: vec3f,
-        @location(3) edge_mask: vec3f,
+    @location(0) position: vec3f,
+    @location(1) normal: vec3f,
+    @location(2) bary: vec3f,
+    @location(3) edge_mask: vec3f,
 };
 
 struct VertexOutput {
-        @builtin(position) position: vec4f,
-        @location(0) bary: vec3f,
-        @location(1) edge_mask: vec3f,
-        @location(2) normal: vec3f,
-        @location(3) world_pos: vec3f,    // For light calculations
-        @location(4) view_pos: vec3f,     // For view-dependent effects
+    @builtin(position) position: vec4f,
+    @location(0) bary: vec3f,
+    @location(1) edge_mask: vec3f,
+    @location(2) world_normal: vec3f,
+    @location(3) world_pos: vec3f,
+    @location(4) view_pos: vec3f,
 };
 
 struct MyUniforms {
@@ -27,47 +27,39 @@ struct MyUniforms {
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
 
 struct Light {
-    direction: vec3f,
+    position: vec3f,
     color: vec3f,
     intensity: f32,
 }
 
-struct Material {
-    ambient: f32,
-    diffuse: f32,
-    specular: f32,
-    shininess: f32,
+fn calculate_lighting(light: Light, normal: vec3f, view_pos: vec3f, view_dir: vec3f) -> vec3f {
+    let light_dir = normalize(light.position - view_pos);
+
+    let diff = max(dot(normal, light_dir), 0.0);
+    let diffuse = diff * light.color * 0.8;
+
+    let reflect_dir = reflect(-light_dir, normal);
+    let spec = pow(max(dot(view_dir, reflect_dir), 0.0), 32.0);
+    let specular = spec * vec3f(0.3) * light.color;
+
+    let distance = length(light.position - view_pos);
+    let attenuation = 1.0 / (1.0 + 0.0005 * distance);
+
+    return (diffuse + specular) * light.intensity * attenuation;
 }
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
-        var out: VertexOutput;
-        let modelPos = uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
-        out.world_pos = modelPos.xyz;
-        out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * modelPos;
-        out.normal = normalize((uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
-        out.bary = in.bary;
-        out.edge_mask = in.edge_mask;
-        out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
-        return out;
-}
-
-fn calculate_blinn_phong(normal: vec3f, light: Light, material: Material, view_dir: vec3f, world_pos: vec3f) -> vec3f {
-    let light_dir = normalize(light.direction);
-
-    // Ambient
-    let ambient = light.color * material.ambient;
-
-    // Diffuse
-    let diff = max(dot(-light_dir, normal), 0.0);
-    let diffuse = light.color * (diff * material.diffuse);
-
-    // Specular (Blinn-Phong)
-    let halfway_dir = normalize(-light_dir + view_dir);
-    let spec = pow(max(dot(normal, halfway_dir), 0.0), material.shininess);
-    let specular = light.color * (spec * material.specular);
-
-    return (ambient + diffuse + specular) * light.intensity;
+    var out: VertexOutput;
+    let modelPos = uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+    out.world_pos = modelPos.xyz;
+    out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * modelPos;
+    let world_normal = normalize((uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
+    out.world_normal = (uMyUniforms.viewMatrix * vec4f(world_normal, 0.0)).xyz;
+    out.bary = in.bary;
+    out.edge_mask = in.edge_mask;
+    out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
+    return out;
 }
 
 fn aces_tone_mapping(color: vec3f) -> vec3f {
@@ -81,64 +73,58 @@ fn aces_tone_mapping(color: vec3f) -> vec3f {
 
 @fragment
 fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location(0) vec4f {
-        // Flip the normal if we're looking at a back face
-        let normal = (f32(is_front) * 2.0 - 1.0) * normalize(in.normal);
-        let view_dir = normalize(-in.view_pos);
+    let normal = (f32(is_front) * 2.0 - 1.0) * normalize(in.world_normal);
+    let view_dir = normalize(-in.view_pos);
 
-        // Define material properties
-        let material = Material(
-            0.2,    // ambient
-            0.7,    // diffuse
-            0.5,    // specular
-            16.0    // shininess
-        );
+    // Key light (main illumination)
+    let key_light = Light(
+        vec3f(10.0, 10.0, 10.0),       // position
+        vec3f(1.0, 0.98, 0.95),        // warm white
+        0.8                            // intensity
+    );
 
-        // Key light (main illumination)
-        let keyLight = Light(
-            normalize(vec3f(-0.5, -0.8, -0.5)),  // direction
-            vec3f(1.0, 0.98, 0.95),              // color (warm white)
-            0.7                                  // intensity
-        );
+    // Fill light
+    let fill_light = Light(
+        vec3f(-6.0, 4.0, 8.0),         // position
+        vec3f(0.9, 0.9, 1.0),          // cool white
+        0.4                            // intensity
+    );
 
-        // Fill light
-        let fillLight = Light(
-            normalize(vec3f(0.8, -0.2, 0.3)),    // direction
-            vec3f(0.9, 0.9, 1.0),                // color (cool white)
-            0.5 * 0.7                            // intensity
-        );
+    // Back light
+    let back_light = Light(
+        vec3f(-2.0, 6.0, -8.0),        // position
+        vec3f(1.0, 1.0, 1.0),          // white
+        0.3                            // intensity
+    );
 
-        // Rim light
-        let rimLight = Light(
-            normalize(vec3f(-0.2, 0.5, 0.8)),    // direction
-            vec3f(1.0, 1.0, 1.0),                // color
-            0.3 * 0.7                            // intensity
-        );
+    let mesh_color = vec3f(0.5, 0.5, 0.5);
+    let wireframe_color = vec3f(0.0, 0.0, 0.0);
+    var result = vec3f(0.0);
 
-        // Calculate lighting contributions
-        let key_contribution = calculate_blinn_phong(normal, keyLight, material, view_dir, in.world_pos);
-        let fill_contribution = calculate_blinn_phong(normal, fillLight, material, view_dir, in.world_pos);
-        let rim_contribution = calculate_blinn_phong(normal, rimLight, material, view_dir, in.world_pos);
+    // Calculate lighting contributions
+    result += calculate_lighting(key_light, normal, in.view_pos, view_dir) * mesh_color;
+    result += calculate_lighting(fill_light, normal, in.view_pos, view_dir) * mesh_color;
 
-        // Edge enhancement using fresnel
-        let fresnel = pow(1.0 - abs(dot(normal, view_dir)), 3.0) * 0.2;
+    let rim_effect = 1.0 - max(dot(view_dir, normal), 0.0);
+    result += calculate_lighting(back_light, normal, in.view_pos, view_dir) * rim_effect * mesh_color;
 
-        // Combine all lighting
-        let mesh_color = vec3f(0.5, 0.5, 0.5);
-        let wireframe_color = vec3f(0.0, 0.0, 0.0);
+    // Add ambient light
+    let ambient = vec3f(0.15) * mesh_color;
+    result += ambient;
 
-        let total_lighting = key_contribution + fill_contribution + rim_contribution;
-        let frag_color = mesh_color * total_lighting + fresnel;
+    // Wire frame calculation (preserved from original)
+    let d = fwidth(in.bary);
+    let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
+    let factor_masked = max(factor, in.edge_mask);
+    let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
 
-        let d = fwidth(in.bary);
-        let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
-        let factor_masked = max(factor, in.edge_mask);
-        let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
-        let color = mix(wireframe_color, frag_color, nearest);
+    // Mix wireframe with shaded mesh
+    let final_color = mix(wireframe_color, result, nearest);
 
-        // Tone mapping and gamma correction
-        let mapped_color = aces_tone_mapping(color);
-        let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
+    // Tone mapping and gamma correction
+    let mapped_color = aces_tone_mapping(final_color);
+    let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
 
-        return vec4f(corrected_color, 1.0);
+    return vec4f(corrected_color, 1.0);
 }
 )shader";
