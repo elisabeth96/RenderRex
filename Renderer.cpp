@@ -8,6 +8,10 @@
 #include <iostream>
 #include <webgpu/webgpu.h>
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten.h>
+#endif // __EMSCRIPTEN__
+
 namespace rr {
 
 /**
@@ -49,9 +53,6 @@ WGPUAdapter requestAdapterSync(WGPUInstance instance, WGPURequestAdapterOptions 
     return userData.adapter;
 }
 
-/**
- * Utility function to get a WebGPU texture view from a surface
- */
 WGPUTextureView GetNextSurfaceTextureView(WGPUSurface surface) {
     WGPUSurfaceTexture surfaceTexture;
     wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
@@ -74,9 +75,6 @@ WGPUTextureView GetNextSurfaceTextureView(WGPUSurface surface) {
     return targetView;
 }
 
-/**
- * Utility function to get a WebGPU device. It is very similar to requestAdapter
- */
 WGPUDevice requestDeviceSync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor) {
     struct UserData {
         WGPUDevice device       = nullptr;
@@ -192,7 +190,9 @@ void Renderer::update_frame() {
     wgpuQueueSubmit(m_queue, 1, &command);
     wgpuCommandBufferRelease(command);
 
+#ifndef __EMSCRIPTEN__
     wgpuSwapChainPresent(m_swapChain);
+#endif
 
 #ifdef WEBGPU_BACKEND_DAWN
     // Check for pending error callbacks
@@ -298,8 +298,11 @@ void Renderer::initialize_device() {
     WGPUInstanceDescriptor desc = {};
     desc.nextInChain            = nullptr;
 
-    // We create the instance using this descriptor
+#ifdef WEBGPU_BACKEND_EMSCRIPTEN
+    WGPUInstance instance = wgpuCreateInstance(nullptr);
+#else  //  WEBGPU_BACKEND_EMSCRIPTEN
     WGPUInstance instance = wgpuCreateInstance(&desc);
+#endif //  WEBGPU_BACKEND_EMSCRIPTEN
 
     // We can check whether there is actually an instance created
     if (!instance) {

@@ -3,14 +3,26 @@
 #include "RenderRex.h"
 #include "Renderer.h"
 
+#ifdef __EMSCRIPTEN__
+#include <emscripten/html5.h>
+#endif
+
 namespace rr {
 
 void show() {
     Renderer& renderer = Renderer::get();
-    // continuously update window and react to user input
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop_arg(
+        [](void* userData) {
+            Renderer& renderer = *reinterpret_cast<Renderer*>(userData);
+            renderer.update_frame();
+        },
+        (void*)&renderer, 0, true);
+#else
     while (!renderer.should_close()) {
         renderer.update_frame();
     }
+#endif
 }
 
 VisualMesh* register_mesh(std::string name, const std::vector<glm::vec3>& positions,

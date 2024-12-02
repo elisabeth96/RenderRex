@@ -61,5 +61,12 @@ if (MSVC)
 	target_compile_options(RenderRex PUBLIC /wd4201)
 endif (MSVC)
 
-target_compile_definitions(RenderRex PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+#target_compile_definitions(RenderRex PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+if(EMSCRIPTEN)
+	set_target_properties(RenderRex PROPERTIES SUFFIX ".html")
+	target_link_options(RenderRex PRIVATE
+			-sALLOW_MEMORY_GROWTH
+			-sASYNCIFY
+	)
+endif()
 
