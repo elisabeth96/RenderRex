@@ -1,4 +1,5 @@
 #include "Mesh.h"
+#include <array>
 
 namespace rr {
 

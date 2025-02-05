@@ -36,8 +36,37 @@ void callback() {
     glm::vec3 color = glm::vec3(1.0f - t, t, 0.0f);
     fa->set_color(color);
 }
+rr::VisualPointCloud* vpc = nullptr;
 
-int main() {
+void callback2() {
+    static float time  = 0.0f;
+    const float  speed = 0.02f;
+    time += speed;
+
+    float scale = 1.0f + std::sin(time) * 0.5f; // Oscillates between 0.5 and 1.5
+    vpc->set_radius(scale * 0.001f);
+    float     t     = (std::sin(time) + 1.0f) * 0.5f;
+    glm::vec3 color = glm::vec3(1.0f - t, t, 0.0f);
+    vpc->set_color(color);
+}
+
+// UI
+
+// Mesh
+//  - face vector
+//  - face color
+//  - vertex vector
+//
+// Point cloud
+//  - vertex vector
+//  - vertex color
+//  - point radius
+//
+// LineNetwork
+//  - color
+//  - thickness
+
+/* int main() {
     // TODO: with the current system this generates too much geometry
     std::string path  = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
     rr::Mesh spot = rr::load_mesh(path);
@@ -46,7 +75,27 @@ int main() {
     //rr::Mesh          spot = rr::load_mesh(mesh_data);
     rr::VisualMesh*   vm   = rr::make_visual("spot", spot);
     fa                     = vm->add_face_attribute("face normals", compute_face_normals(spot));
+
     rr::set_user_callback(callback);
+
+    rr::show();
+
+    return 0;
+}*/
+
+// point cloud
+
+int main() {
+    std::string            path = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
+    rr::Mesh               spot = rr::load_mesh(path);
+    std::vector<glm::vec3> pcl  = spot.positions;
+
+    // rr::VisualMesh* vm = rr::make_visual("spot", spot);
+    vpc = rr::make_visual("cloud", pcl);
+    // fa                 = vm->add_face_attribute("face normals", compute_face_normals(spot));
+
+    rr::set_user_callback(callback2);
+
     rr::show();
 
     return 0;

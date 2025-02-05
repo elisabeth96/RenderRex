@@ -32,6 +32,13 @@ VisualMesh* make_visual(std::string name, const Mesh& mesh) {
     return dynamic_cast<VisualMesh*>(drawable);
 }
 
+VisualPointCloud* make_visual(std::string name, const std::vector<glm::vec3> pos) {
+    Renderer& renderer = Renderer::get();
+
+    Drawable* drawable = renderer.register_drawable(name, std::make_unique<VisualPointCloud>(pos, renderer));
+    return dynamic_cast<VisualPointCloud*>(drawable);
+}
+
 InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances) {
     Renderer& renderer = Renderer::get();
     assert(!mesh.normal_faces.empty());

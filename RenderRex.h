@@ -25,6 +25,8 @@ VisualMesh* make_visual(std::string name, std::vector<glm::vec3>& positions,
 
 VisualMesh* make_visual(std::string name, const Mesh& mesh);
 
+VisualPointCloud* make_visual(std::string name, const std::vector<glm::vec3> pos);
+
 InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances);
 
 void set_user_callback(std::function<void()> callback);

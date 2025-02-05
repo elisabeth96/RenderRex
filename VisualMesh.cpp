@@ -1,12 +1,12 @@
 #include "VisualMesh.h"
 
 #include "Camera.h"
+#include "InstancedMesh.h"
 #include "Mesh.h"
 #include "Primitives.h"
 #include "Property.h"
 #include "Renderer.h"
 #include "ShaderCode.h"
-#include "InstancedMesh.h"
 
 #include <iostream>
 
@@ -331,16 +331,41 @@ void VisualMesh::on_camera_update() {
     wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
 
     // update properties
-        for (auto& [name, prop] : m_properties) {
-            prop->on_camera_update();
-        }
+    for (auto& [name, prop] : m_properties) {
+        prop->on_camera_update();
+    }
 }
 
 FaceVectorProperty* VisualMesh::add_face_attribute(std::string_view name, const std::vector<glm::vec3>& vs) {
-    auto property = std::make_unique<FaceVectorProperty>(this, vs);
-    auto& slot = m_properties[std::string(name)];
-    slot       = std::move(property);
+    auto  property = std::make_unique<FaceVectorProperty>(this, vs);
+    auto& slot     = m_properties[std::string(name)];
+    slot           = std::move(property);
     return dynamic_cast<FaceVectorProperty*>(slot.get());
 }
+
+VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, const Renderer& renderer)
+    : Drawable(&renderer, BoundingBox(positions)) {
+
+    Mesh sphere_mesh = create_sphere(10, 10);
+    sphere_mesh.scale({m_init_radius, m_init_radius, m_init_radius});
+    set_smooth_normals(sphere_mesh);
+    m_spheres = std::make_unique<InstancedMesh>(sphere_mesh, positions.size(), renderer);
+    std::vector<glm::mat4x4> transforms;
+
+    for (const auto& p : positions) {
+        glm::mat4x4 t(1.0f);
+        t[3][0] = p.x;
+        t[3][1] = p.y;
+        t[3][2] = p.z;
+        transforms.push_back(t);
+    }
+    m_spheres->set_instance_data(transforms, {1, 0, 0});
+    m_spheres->upload_instance_data();
+    //  configure_render_pipeline();
+}
+
+// VisualPointCloud::~VisualPointCloud() {
+// release();
+//}
 
 } // namespace rr

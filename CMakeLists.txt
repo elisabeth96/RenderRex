@@ -35,7 +35,6 @@ add_executable(RenderRex
 		MeshIO.cpp
 		Property.h
 		Property.cpp
-		spot.cpp
 )
 
 target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)

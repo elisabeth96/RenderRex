@@ -54,10 +54,14 @@ public:
     }
 
     void set_instance_data(const std::vector<glm::mat4>& transforms, const glm::vec3& color) {
-        for(size_t i = 0; i < m_instance_data.size(); ++i) {
+        for (size_t i = 0; i < m_instance_data.size(); ++i) {
             m_instance_data[i].transform = transforms[i];
-            m_instance_data[i].color = glm::vec4(color, 1.0f);
+            m_instance_data[i].color     = glm::vec4(color, 1.0f);
         }
+    }
+
+    std::vector<InstanceData>& get_instance_data() {
+        return m_instance_data;
     }
 
     void upload_instance_data();

@@ -2,6 +2,7 @@
 #include "MeshIO.h"
 #include "Mesh.h"
 
+#include <array>
 #include <fstream>
 #include <sstream>
 
@@ -76,7 +77,7 @@ Mesh load_mesh(std::istream& input_file) {
 }
 
 Mesh load_mesh(std::string_view path) {
-    std::ifstream input_file(path);
+    std::ifstream input_file(std::string{path});
     if (!input_file.is_open()) {
         throw std::runtime_error("Failed to open file: " + std::string(path));
     }
@@ -99,7 +100,7 @@ void load_mesh(std::string_view path, std::vector<glm::vec3>& positions,
 }
 
 void save_obj(std::string_view path, const Mesh& mesh) {
-    std::ofstream file(path);
+    std::ofstream file(std::string{path});
     if (!file.is_open()) {
         throw std::runtime_error("Failed to open file: " + std::string(path));
     }
