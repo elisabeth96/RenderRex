@@ -9,28 +9,15 @@ namespace rr {
 
 class VisualMesh;
 class InstancedMesh;
+struct VisualMeshVertexAttributes;
 
-class Property {
-public:
-    explicit Property(VisualMesh* vmesh) : m_vmesh(vmesh) {}
-
-    virtual ~Property() = default;
-    // virtual void generate_attributes(std::vector<VisualMeshVertexAttributes>&) = 0;
-    virtual void draw(WGPURenderPassEncoder) = 0;
-
-    virtual void on_camera_update() {}
-
-    VisualMesh* m_vmesh = nullptr;
-};
-
-class FaceVectorProperty : public Property {
+class FaceVectorProperty {
 public:
     explicit FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm::vec3>& vs);
-    ~FaceVectorProperty() override;
 
-    void draw(WGPURenderPassEncoder) override;
+    void draw(WGPURenderPassEncoder);
 
-    void on_camera_update() override;
+    void on_camera_update();
 
     void set_color(const glm::vec3& color);
 
@@ -55,6 +42,33 @@ public:
     void update_instance_data();
 
     std::unique_ptr<InstancedMesh> m_arrows;
+
+    VisualMesh* m_vmesh = nullptr;
+};
+
+class FaceColorProperty {
+public:
+    explicit FaceColorProperty(VisualMesh* vmesh, const std::vector<glm::vec3>& colors);
+
+    void set_colors(const std::vector<glm::vec3>& colors);
+
+    bool is_enabled() const {
+        return m_is_enabled;
+    }
+
+    void set_enabled(bool enabled) {
+        m_is_enabled = enabled;
+    }
+
+    const std::vector<glm::vec3>& get_colors() const {
+        return m_colors;
+    }
+
+private:
+    VisualMesh* m_vmesh      = nullptr;
+    bool        m_is_enabled = false;
+
+    std::vector<glm::vec3> m_colors;
 };
 
 } // namespace rr

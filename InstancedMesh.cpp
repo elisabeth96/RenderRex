@@ -220,9 +220,9 @@ void InstancedMesh::configure_render_pipeline() {
     WGPUShaderModuleDescriptor     shaderDesc     = {};
     WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
     shaderCodeDesc.chain.next                     = nullptr;
-    shaderCodeDesc.chain.sType                    = WGPUSType_ShaderModuleWGSLDescriptor;
+    shaderCodeDesc.chain.sType                    = WGPUSType_ShaderSourceWGSL;
     shaderDesc.nextInChain                        = &shaderCodeDesc.chain;
-    shaderCodeDesc.code                           = shaderCode;
+    shaderCodeDesc.code                           = to_string_view(shaderCode);
     WGPUShaderModule shaderModule                 = wgpuDeviceCreateShaderModule(renderer.m_device, &shaderDesc);
 
     // Vertex attributes
@@ -280,7 +280,7 @@ void InstancedMesh::configure_render_pipeline() {
     pipelineDesc.vertex.bufferCount           = bufferLayouts.size();
     pipelineDesc.vertex.buffers               = bufferLayouts.data();
     pipelineDesc.vertex.module                = shaderModule;
-    pipelineDesc.vertex.entryPoint            = "vs_main";
+    pipelineDesc.vertex.entryPoint            = to_string_view("vs_main");
     pipelineDesc.vertex.constantCount         = 0;
     pipelineDesc.vertex.constants             = nullptr;
 
@@ -293,7 +293,7 @@ void InstancedMesh::configure_render_pipeline() {
     WGPUFragmentState fragmentState = {};
     pipelineDesc.fragment           = &fragmentState;
     fragmentState.module            = shaderModule;
-    fragmentState.entryPoint        = "fs_main";
+    fragmentState.entryPoint        = to_string_view("fs_main");
     fragmentState.constantCount     = 0;
     fragmentState.constants         = nullptr;
 
@@ -315,7 +315,7 @@ void InstancedMesh::configure_render_pipeline() {
 
     WGPUDepthStencilState depthStencilState = {};
     depthStencilState.depthCompare          = WGPUCompareFunction_Less;
-    depthStencilState.depthWriteEnabled     = true;
+    depthStencilState.depthWriteEnabled     = WGPUOptionalBool_True;
     depthStencilState.format                = renderer.m_depthTextureFormat;
     depthStencilState.stencilReadMask       = 0;
     depthStencilState.stencilWriteMask      = 0;
@@ -395,7 +395,7 @@ void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
 void InstancedMesh::on_camera_update() {
     m_uniforms.viewMatrix = m_renderer->m_camera.transform();
 
-    float aspect_ratio          = 1;
+    float aspect_ratio          = static_cast<float>(m_renderer->m_width) / static_cast<float>(m_renderer->m_height);
     float far_plane             = 100.0f;
     float near_plane            = 0.01f;
     float fov                   = glm::radians(45.0f);

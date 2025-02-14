@@ -6,6 +6,7 @@ struct VertexInput {
     @location(1) normal: vec3f,
     @location(2) bary: vec3f,
     @location(3) edge_mask: vec3f,
+	@location(4) color: vec3f,
 };
 
 struct VertexOutput {
@@ -15,13 +16,15 @@ struct VertexOutput {
     @location(2) world_normal: vec3f,
     @location(3) world_pos: vec3f,
     @location(4) view_pos: vec3f,
+	@location(5) color: vec3f,
 };
 
 struct MyUniforms {
     projectionMatrix: mat4x4f,
     viewMatrix: mat4x4f,
     modelMatrix: mat4x4f,
-    color: vec4f,
+    wireframeColor: vec4f,
+    showWireframe : vec4i,
 };
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
@@ -59,6 +62,7 @@ fn vs_main(in: VertexInput) -> VertexOutput {
     out.bary = in.bary;
     out.edge_mask = in.edge_mask;
     out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
+	out.color = in.color;
     return out;
 }
 
@@ -78,48 +82,52 @@ fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location
 
     // Key light (main illumination)
     let key_light = Light(
-        vec3f(10.0, 10.0, 10.0),       // position
-        vec3f(1.0, 0.98, 0.95),        // warm white
-        0.8                            // intensity
+        vec3f(10.0, 10.0, 10.0),   // position
+        vec3f(1.0, 0.98, 0.95),    // warm white
+        0.8                        // intensity
     );
 
     // Fill light
     let fill_light = Light(
-        vec3f(-6.0, 4.0, 8.0),         // position
+        vec3f(-6.0, 4.0, 8.0),       
         vec3f(0.9, 0.9, 1.0),          // cool white
-        0.4                            // intensity
+        0.4                      
     );
 
     // Back light
     let back_light = Light(
-        vec3f(-2.0, 6.0, -8.0),        // position
+        vec3f(-2.0, 6.0, -8.0),       
         vec3f(1.0, 1.0, 1.0),          // white
-        0.3                            // intensity
+        0.3                           
     );
 
-    let mesh_color = vec3f(0.5, 0.5, 0.5);
-    let wireframe_color = vec3f(0.0, 0.0, 0.0);
+    let meshColor = in.color;
+    let wireframe_color = uMyUniforms.wireframeColor.xyz;
     var result = vec3f(0.0);
 
     // Calculate lighting contributions
-    result += calculate_lighting(key_light, normal, in.view_pos, view_dir) * mesh_color;
-    result += calculate_lighting(fill_light, normal, in.view_pos, view_dir) * mesh_color;
+    result += calculate_lighting(key_light, normal, in.view_pos, view_dir) * meshColor;
+    result += calculate_lighting(fill_light, normal, in.view_pos, view_dir) * meshColor;
 
     let rim_effect = 1.0 - max(dot(view_dir, normal), 0.0);
-    result += calculate_lighting(back_light, normal, in.view_pos, view_dir) * rim_effect * mesh_color;
+    result += calculate_lighting(back_light, normal, in.view_pos, view_dir) * rim_effect * meshColor;
 
     // Add ambient light
-    let ambient = vec3f(0.15) * mesh_color;
+    let ambient = vec3f(0.15) * meshColor;
     result += ambient;
 
-    // Wire frame calculation (preserved from original)
-    let d = fwidth(in.bary);
-    let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
-    let factor_masked = max(factor, in.edge_mask);
-    let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
+	var final_color = result;
 
-    // Mix wireframe with shaded mesh
-    let final_color = mix(wireframe_color, result, nearest);
+    if (uMyUniforms.showWireframe.x == 1) {
+		// Wire frame calculation (preserved from original)
+        let d = fwidth(in.bary);
+        let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
+        let factor_masked = max(factor, in.edge_mask);
+        let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
+
+        // Mix wireframe with shaded mesh
+        final_color = mix(wireframe_color, result, nearest);
+	}
 
     // Tone mapping and gamma correction
     let mapped_color = aces_tone_mapping(final_color);

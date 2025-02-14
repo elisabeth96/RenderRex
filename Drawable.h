@@ -2,6 +2,7 @@
 #pragma once
 
 #include "BoundingBox.h"
+#include <string>
 #include <webgpu/webgpu.h>
 
 namespace rr {
@@ -18,8 +19,12 @@ public:
 
     virtual void on_camera_update() = 0;
 
+    virtual void update_ui(std::string name, int index) = 0;
+
     const Renderer* m_renderer = nullptr;
     BoundingBox     m_bbox;
+
+    bool m_visable = true;
 };
 
 } // namespace rr

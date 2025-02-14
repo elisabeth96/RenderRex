@@ -60,6 +60,10 @@ public:
         }
     }
 
+    void update_ui(std::string, int) override {
+        // todo
+    }
+
     std::vector<InstanceData>& get_instance_data() {
         return m_instance_data;
     }

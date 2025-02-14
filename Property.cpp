@@ -9,8 +9,7 @@
 
 namespace rr {
 
-FaceVectorProperty::FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm::vec3>& vectors) : Property(vmesh) {
-
+FaceVectorProperty::FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm::vec3>& vectors) : m_vmesh(vmesh) {
     const Mesh&            mesh = m_vmesh->m_mesh;
     std::vector<glm::vec3> face_centers(mesh.num_faces());
 
@@ -95,7 +94,7 @@ void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors
     for (const auto& face : cone.position_faces) {
         Mesh::Face new_face;
         for (size_t idx : face) {
-            new_face.push_back(idx + base_vertex_count);
+            new_face.push_back(uint32_t(idx + base_vertex_count));
         }
         arrow_mesh.position_faces.push_back(new_face);
     }
@@ -158,8 +157,6 @@ void FaceVectorProperty::update_instance_data() {
     m_arrows->set_instance_data(m_transforms, m_color);
 }
 
-FaceVectorProperty::~FaceVectorProperty() = default;
-
 void FaceVectorProperty::draw(WGPURenderPassEncoder pass) {
     if (m_instance_data_dirty) {
         update_instance_data();
@@ -186,6 +183,14 @@ void FaceVectorProperty::set_radius(float radius) {
 void FaceVectorProperty::set_length(float length) {
     m_length              = length;
     m_instance_data_dirty = true;
+}
+
+FaceColorProperty::FaceColorProperty(VisualMesh* vmesh, const std::vector<glm::vec3>& colors)
+    : m_vmesh(vmesh), m_colors(colors) {}
+
+void FaceColorProperty::set_colors(const std::vector<glm::vec3>& colors) {
+    m_colors = colors;
+    m_vmesh->update_face_colors();
 }
 
 } // namespace rr

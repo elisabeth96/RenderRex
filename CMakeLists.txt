@@ -10,8 +10,14 @@ else()
 	target_link_options(glfw INTERFACE -sUSE_GLFW=3)
 endif()
 
-add_subdirectory(webgpu)
+set(CMAKE_PREFIX_PATH "C:/Users/janos/Documents/Projects/dawn/install/Release")
+find_package(Dawn REQUIRED)
+
+add_library(webgpu INTERFACE)
+target_link_libraries(webgpu INTERFACE dawn::webgpu_dawn)
+
 add_subdirectory(glfw3webgpu)
+add_subdirectory(imgui)
 
 # Create executable and ensure proper dependency ordering
 add_executable(RenderRex
@@ -37,7 +43,11 @@ add_executable(RenderRex
 		Property.cpp
 )
 
-target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)
+target_link_libraries(RenderRex PRIVATE 
+	glfw 
+	glfw3webgpu 
+	imgui 
+	webgpu)
 
 #enable asan
 #target_compile_options(RenderRex PRIVATE -fsanitize=address)
@@ -46,8 +56,6 @@ target_link_libraries(RenderRex PRIVATE glfw webgpu glfw3webgpu)
 #enable udefined behavior sanitizer
 #target_compile_options(RenderRex PRIVATE -fsanitize=undefined)
 #target_link_options(RenderRex PRIVATE -fsanitize=undefined)
-
-target_copy_webgpu_binaries(RenderRex)
 
 if (MSVC)
 	target_compile_options(RenderRex PRIVATE /W4)

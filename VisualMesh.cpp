@@ -12,18 +12,7 @@
 
 namespace rr {
 
-/**
- * A structure that describes the data layout in the vertex buffer
- * We do not instantiate it but use it in `sizeof` and `offsetof`
- */
-struct VisualMeshVertexAttributes {
-    glm::vec3 position;
-    glm::vec3 normal;
-    glm::vec3 bary;
-    glm::vec3 edge_mask;
-};
-
-static std::vector<VisualMeshVertexAttributes> create_vertex_attributes(const Mesh& mesh) {
+static std::vector<VisualMeshVertexAttributes> create_vertex_attributes(const Mesh& mesh, glm::vec3 color) {
     std::vector<VisualMeshVertexAttributes> vertex_attributes;
     vertex_attributes.reserve(3 * mesh.num_faces());
 
@@ -36,7 +25,7 @@ static std::vector<VisualMeshVertexAttributes> create_vertex_attributes(const Me
 
         // For faces with more than 3 vertices, we need to triangulate
         // We use fan triangulation: connect first vertex to all other vertices in sequence
-        size_t num_triangles = f.size() - 2; // Number of triangles after fan triangulation
+        size_t num_triangles = f.size() - 2;
 
         for (size_t j = 0; j < num_triangles; ++j) {
             // For each triangle in the fan, we need to determine which edges are real
@@ -49,39 +38,29 @@ static std::vector<VisualMeshVertexAttributes> create_vertex_attributes(const Me
             //   a) It connects to consecutive vertices in the original face
             //   b) It's the first or last edge connected to the center vertex
 
-            glm::vec3 edge_mask(1.0f); // Start with all edges masked (internal)
+            glm::vec3 edge_mask(1.0f);
 
-            // Edge bc (between vertices j+1 and j+2)
-            // This is a real edge if j+1 and j+2 were consecutive in original face
-            edge_mask[0] = 0.0f; // bc is always a real edge in the original face
+            edge_mask[0] = 0.0f;
 
-            // Edge ca (between vertex j+2 and center)
-            // This is a real edge if it's the last triangle in the fan
             if (j == num_triangles - 1) {
-                edge_mask[1] = 0.0f; // Last edge back to center is real
+                edge_mask[1] = 0.0f;
             }
 
-            // Edge ab (between center and vertex j+1)
-            // This is a real edge if it's the first triangle in the fan
             if (j == 0) {
-                edge_mask[2] = 0.0f; // First edge from center is real
+                edge_mask[2] = 0.0f;
             }
 
-            // Add the three vertices for this triangle
-            // Center vertex (same for all triangles in the fan)
             vertex_attributes.push_back({mesh.positions[f[0]], mesh.normals[nf[0]],
                                          glm::vec3(1.0f, 0.0f, 0.0f), // Barycentric coordinates (1,0,0)
-                                         edge_mask});
+                                         edge_mask, color});
 
-            // First edge vertex
             vertex_attributes.push_back({mesh.positions[f[j + 1]], mesh.normals[nf[j + 1]],
                                          glm::vec3(0.0f, 1.0f, 0.0f), // Barycentric coordinates (0,1,0)
-                                         edge_mask});
+                                         edge_mask, color});
 
-            // Second edge vertex
             vertex_attributes.push_back({mesh.positions[f[j + 2]], mesh.normals[nf[j + 2]],
                                          glm::vec3(0.0f, 0.0f, 1.0f), // Barycentric coordinates (0,0,1)
-                                         edge_mask});
+                                         edge_mask, color});
         }
     }
 
@@ -111,7 +90,8 @@ VisualMesh::~VisualMesh() {
     release();
 }
 
-void shaderCompilationCallback(WGPUCompilationInfoRequestStatus, WGPUCompilationInfo const* compilationInfo, void*) {
+void shaderCompilationCallback(WGPUCompilationInfoRequestStatus, WGPUCompilationInfo const* compilationInfo, void*,
+                               void*) {
     if (compilationInfo) {
         for (uint32_t i = 0; i < compilationInfo->messageCount; ++i) {
             WGPUCompilationMessage const& message = compilationInfo->messages[i];
@@ -133,7 +113,7 @@ void shaderCompilationCallback(WGPUCompilationInfoRequestStatus, WGPUCompilation
             }
 
             std::cerr << messageType << " at line " << message.lineNum << ", column " << message.linePos << ": "
-                      << message.message << std::endl;
+                      << to_string(message.message) << std::endl;
         }
     }
 }
@@ -143,13 +123,17 @@ WGPUShaderModule createShaderModule(WGPUDevice device, const char* shaderSource)
     WGPUShaderModuleWGSLDescriptor shaderCodeDesc{};
 
     shaderCodeDesc.chain.next  = nullptr;
-    shaderCodeDesc.chain.sType = WGPUSType_ShaderModuleWGSLDescriptor;
+    shaderCodeDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
     shaderDesc.nextInChain     = &shaderCodeDesc.chain;
-    shaderCodeDesc.code        = shaderSource;
+    shaderCodeDesc.code        = to_string_view(shaderSource);
 
     WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(device, &shaderDesc);
 
-    wgpuShaderModuleGetCompilationInfo(shaderModule, shaderCompilationCallback, nullptr);
+    WGPUCompilationInfoCallbackInfo callback_info = {};
+    callback_info.callback                        = shaderCompilationCallback;
+    callback_info.mode                            = WGPUCallbackMode_AllowSpontaneous;
+
+    wgpuShaderModuleGetCompilationInfo(shaderModule, callback_info);
 
     return shaderModule;
 }
@@ -158,14 +142,12 @@ void VisualMesh::configure_render_pipeline() {
     release();
     const Renderer& renderer = *m_renderer;
 
-    std::vector<VisualMeshVertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
-
-    m_num_attr_verts = vertex_attributes.size();
+    m_vertex_attributes = create_vertex_attributes(m_mesh, m_mesh_color);
 
     WGPUShaderModule shaderModule = createShaderModule(renderer.m_device, shaderCode);
 
     // Vertex fetch
-    std::vector<WGPUVertexAttribute> vertexAttribs(4);
+    std::vector<WGPUVertexAttribute> vertexAttribs(5);
 
     // Position attribute
     vertexAttribs[0].shaderLocation = 0;
@@ -187,6 +169,10 @@ void VisualMesh::configure_render_pipeline() {
     vertexAttribs[3].format         = WGPUVertexFormat_Float32x3;
     vertexAttribs[3].offset         = offsetof(VisualMeshVertexAttributes, edge_mask);
 
+    vertexAttribs[4].shaderLocation = 4;
+    vertexAttribs[4].format         = WGPUVertexFormat_Float32x3;
+    vertexAttribs[4].offset         = offsetof(VisualMeshVertexAttributes, color);
+
     WGPUVertexBufferLayout vertexBufferLayout = {};
     vertexBufferLayout.attributeCount         = (uint32_t)vertexAttribs.size();
     vertexBufferLayout.attributes             = vertexAttribs.data();
@@ -200,7 +186,7 @@ void VisualMesh::configure_render_pipeline() {
     pipelineDesc.vertex.buffers     = &vertexBufferLayout;
 
     pipelineDesc.vertex.module        = shaderModule;
-    pipelineDesc.vertex.entryPoint    = "vs_main";
+    pipelineDesc.vertex.entryPoint    = to_string_view("vs_main");
     pipelineDesc.vertex.constantCount = 0;
     pipelineDesc.vertex.constants     = nullptr;
 
@@ -212,7 +198,7 @@ void VisualMesh::configure_render_pipeline() {
     WGPUFragmentState fragmentState = {};
     pipelineDesc.fragment           = &fragmentState;
     fragmentState.module            = shaderModule;
-    fragmentState.entryPoint        = "fs_main";
+    fragmentState.entryPoint        = to_string_view("fs_main");
     fragmentState.constantCount     = 0;
     fragmentState.constants         = nullptr;
 
@@ -234,7 +220,7 @@ void VisualMesh::configure_render_pipeline() {
 
     WGPUDepthStencilState depthStencilState = {};
     depthStencilState.depthCompare          = WGPUCompareFunction_Less;
-    depthStencilState.depthWriteEnabled     = true;
+    depthStencilState.depthWriteEnabled     = WGPUOptionalBool_True;
     depthStencilState.format                = renderer.m_depthTextureFormat;
     depthStencilState.stencilReadMask       = 0;
     depthStencilState.stencilWriteMask      = 0;
@@ -267,11 +253,11 @@ void VisualMesh::configure_render_pipeline() {
 
     // Create vertex buffer
     WGPUBufferDescriptor bufferDesc = {};
-    bufferDesc.size                 = vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
+    bufferDesc.size                 = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
     bufferDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
     bufferDesc.mappedAtCreation     = false;
     m_vertexBuffer                  = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
-    wgpuQueueWriteBuffer(renderer.m_queue, m_vertexBuffer, 0, vertex_attributes.data(), bufferDesc.size);
+    wgpuQueueWriteBuffer(renderer.m_queue, m_vertexBuffer, 0, m_vertex_attributes.data(), bufferDesc.size);
 
     // Create uniform buffer
     bufferDesc.size             = sizeof(VisualMeshUniforms);
@@ -303,44 +289,63 @@ void VisualMesh::configure_render_pipeline() {
 }
 
 void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
+    if (!m_visable) {
+        return;
+    }
+
+    if (m_attributes_dirty) {
+        size_t size = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
+        wgpuQueueWriteBuffer(Renderer::get().m_queue, m_vertexBuffer, 0, m_vertex_attributes.data(), size);
+        m_attributes_dirty = false;
+    }
+
+    if (m_uniforms_dirty) {
+        wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
+        m_uniforms_dirty = false;
+    }
+
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
     wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertexBuffer, 0,
-                                         m_num_attr_verts * sizeof(VisualMeshVertexAttributes));
+                                         m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes));
 
     // Set binding group
     wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
-    wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_num_attr_verts), 1, 0, 0);
+    wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_vertex_attributes.size()), 1, 0, 0);
 
-    for (auto& [name, prop] : m_properties) {
+    for (auto& [name, prop] : m_vector_properties) {
         prop->draw(render_pass);
     }
 }
 
 void VisualMesh::on_camera_update() {
-    m_uniforms.viewMatrix = m_renderer->m_camera.transform();
+    float aspect_ratio = static_cast<float>(m_renderer->m_width) / static_cast<float>(m_renderer->m_height);
+    float far_plane    = 100.0f;
+    float near_plane   = 0.01f;
+    float fov          = glm::radians(45.0f);
 
-    m_uniforms.modelMatrix = glm::mat4(1.0f);
-    m_uniforms.color       = {0.f, 0.0f, 0.0f, 1.0f};
-
-    float aspect_ratio          = 1;
-    float far_plane             = 100.0f;
-    float near_plane            = 0.01f;
-    float fov                   = glm::radians(45.0f);
+    m_uniforms.viewMatrix       = m_renderer->m_camera.transform();
+    m_uniforms.modelMatrix      = glm::mat4(1.0f);
     m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
+    m_uniforms_dirty            = true;
 
-    wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
-
-    // update properties
-    for (auto& [name, prop] : m_properties) {
+    // update vector properties
+    for (auto& [name, prop] : m_vector_properties) {
         prop->on_camera_update();
     }
 }
 
-FaceVectorProperty* VisualMesh::add_face_attribute(std::string_view name, const std::vector<glm::vec3>& vs) {
+FaceVectorProperty* VisualMesh::add_face_vectors(std::string_view name, const std::vector<glm::vec3>& vs) {
     auto  property = std::make_unique<FaceVectorProperty>(this, vs);
-    auto& slot     = m_properties[std::string(name)];
+    auto& slot     = m_vector_properties[std::string(name)];
     slot           = std::move(property);
-    return dynamic_cast<FaceVectorProperty*>(slot.get());
+    return slot.get();
+}
+
+FaceColorProperty* VisualMesh::add_face_colors(std::string_view name, const std::vector<glm::vec3>& colors) {
+    auto  property = std::make_unique<FaceColorProperty>(this, colors);
+    auto& slot     = m_color_properties[std::string(name)];
+    slot           = std::move(property);
+    return slot.get();
 }
 
 VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, const Renderer& renderer)
@@ -363,9 +368,5 @@ VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, cons
     m_spheres->upload_instance_data();
     //  configure_render_pipeline();
 }
-
-// VisualPointCloud::~VisualPointCloud() {
-// release();
-//}
 
 } // namespace rr
