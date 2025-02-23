@@ -317,20 +317,63 @@ void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
 }
 
 void VisualMesh::on_camera_update() {
-    float aspect_ratio = static_cast<float>(m_renderer->m_width) / static_cast<float>(m_renderer->m_height);
-    float far_plane    = 100.0f;
-    float near_plane   = 0.01f;
-    float fov          = glm::radians(45.0f);
-
-    m_uniforms.viewMatrix       = m_renderer->m_camera.transform();
-    m_uniforms.modelMatrix      = glm::mat4(1.0f);
-    m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
+    m_uniforms.view_matrix       = m_renderer->m_camera.transform();
+    m_uniforms.projection_matrix = m_renderer->m_projection;
     m_uniforms_dirty            = true;
 
     // update vector properties
     for (auto& [name, prop] : m_vector_properties) {
         prop->on_camera_update();
     }
+}
+
+void VisualMesh::update_ui(std::string name, int index) {
+    ImGui::Checkbox(name.c_str(), &m_visible);
+    if (m_visible) {
+
+        bool update_uniforms = false;
+        bool update_color    = false;
+        update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
+        update_uniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
+        m_uniforms.show_wireframe[0] = m_show_wireframe ? 1 : 0;
+        if (m_show_wireframe) {
+            update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframe_color);
+        }
+
+        if (update_uniforms)
+            m_uniforms_dirty = true;
+
+        if (update_color) {
+            auto it = std::find_if(m_color_properties.begin(), m_color_properties.end(),
+                                   [](const auto& pair) { return pair.second->is_enabled(); });
+            if (it == m_color_properties.end()) {
+                for (auto& attr : m_vertex_attributes) {
+                    attr.color = m_mesh_color;
+                }
+                m_attributes_dirty = true;
+            }
+        }
+
+        // face color properties
+        bool face_colors_changed = false;
+        for (auto& [name, prop] : m_color_properties) {
+            bool is_enabled = prop->is_enabled();
+            face_colors_changed |= ImGui::Checkbox(name.c_str(), &is_enabled);
+            prop->set_enabled(is_enabled);
+        }
+
+        if (face_colors_changed)
+            update_face_colors();
+    }
+}
+
+void VisualMesh::set_transform(const glm::mat4& transform) {
+    m_uniforms.model_matrix = transform;
+    m_uniforms_dirty = true;
+}
+
+const glm::mat4* VisualMesh::get_transform() const {
+    return &m_uniforms.model_matrix;
 }
 
 FaceVectorProperty* VisualMesh::add_face_vectors(std::string_view name, const std::vector<glm::vec3>& vs) {

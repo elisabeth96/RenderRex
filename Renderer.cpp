@@ -1,20 +1,23 @@
-// contains all the unser interface funtions for the renderrex library
-
 #include "Renderer.h"
 #include "Drawable.h"
+
 #include "glfw3webgpu/glfw3webgpu.h"
 #include <GLFW/glfw3.h>
-#include <imgui.h>
 
+#include <imgui.h>
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_wgpu.h>
+#include "imguizmo/ImGuizmo.h"
 
 #include <cassert>
 #include <chrono>
 #include <thread>
-
 #include <iostream>
+
 #include <webgpu/webgpu.h>
+#include <imguizmo/ImGuizmo.h>
+
+#include <glm/gtc/type_ptr.hpp>
 
 namespace rr {
 
@@ -193,6 +196,7 @@ WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView next_texture,
 
     // render_pass_desc.timestampWriteCount = 0;
     render_pass_desc.timestampWrites = nullptr;
+
     return wgpuCommandEncoderBeginRenderPass(encoder, &render_pass_desc);
 }
 
@@ -202,66 +206,46 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
 
-    // [...] Build our UI
-    // static float radius = 1.0f;
+    ImGuiIO& io = ImGui::GetIO();
 
-    // static std::vector<bool> show_point_cloud(m_drawables.size(), true);
-    //  static bool   show_another_window = false;
-    // static ImVec4 color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    ImGuizmo::BeginFrame();
+    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
-    ImGui::Begin("User Interface"); // Create a window called "Hello, world!" and append into it.
+    ImGui::Begin("User Interface"); 
 
-    ImGui::Text("Select your drawables"); // Display some text (you can use a format strings too)
-                                          // Use an index that resets every frame.
-    /* int index = 0;
-    // For each drawable in the map, create a checkbox.
-    for (const auto& pair : m_drawables) {
-        // You might use the key name in the label.
-        std::string label = pair.first + "##" + std::to_string(index);
-        // Copy the value into a temporary bool.
-        bool visible = show_point_cloud[index];
+    ImGui::Text("Select your drawables"); 
+    int id = 0;
+    for (const auto& [name, drawable] : m_drawables) {
+        ImGui::PushID(name.c_str());
 
-        // Use the temporary variable for the checkbox.
-        if (ImGui::Checkbox(label.c_str(), &visible)) {
-            // If the checkbox value changed, update the vector.
-            show_point_cloud[index] = visible;
+        drawable->update_ui(name, id);
+
+        if (drawable->m_visible && drawable->get_transform() != nullptr) {
+            const char* transform_items[] = { "None", "Translate", "Rotate", "Scale" };
+            int current_item = static_cast<int>(drawable->get_transform_status());
+            std::string combo_label = "Transform";
+            if (ImGui::Combo(combo_label.c_str(), &current_item, transform_items, IM_ARRAYSIZE(transform_items))) {
+                drawable->set_transform_status(static_cast<TransformStatus>(current_item));
+            }
         }
-        ++index;
-    }*/
-    int index = 0;
-    for (const auto& pair : m_drawables) {
-        pair.second->update_ui(pair.first, index);
-        ++index;
+
+        ImGuizmo::PushID(id);
+        handle_guizmo(drawable.get());
+        ImGuizmo::PopID();
+
+        ImGui::PopID();
+        
+        // Draw separator line between drawables
+        if (id < m_drawables.size() - 1) {
+            ImGui::Separator();
+        }
+        
+        ++id;
     }
 
-    // ImGui::SliderFloat("scale radius", &radius, 0.5f, 1.5f); // Edit 1 float using a slider from 0.0f to 1.0f
-    // ImGui::ColorEdit3("change color", (float*)&color);       // Edit 3 floats representing a color
-
-    // if (ImGui::Button("Button")) // Buttons return true when clicked (most widgets return true when edited/activated)
-    // counter++;
-    // ImGui::SameLine();
-    // ImGui::Text("counter = %d", counter);
-
-    // ImGuiIO& io = ImGui::GetIO();
-    // ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
     ImGui::End();
-    // go through drawables and change their radius and color
-    /*glm::vec4 color_vec = {color.x, color.y, color.z, color.w};
-    int       i         = 0;
-    for (auto& drawable : m_drawables) {
-        if (show_point_cloud[i]) {
-            drawable.second->updateFromUI(color_vec, radius);
-        } else {
-            drawable.second->updateFromUI(glm::vec4(0.0f), 0.0f);
-        }
-        ++i;
-    }*/
-
-    // Draw the UI
     ImGui::EndFrame();
-    // Convert the UI defined above into low-level drawing commands
     ImGui::Render();
-    // Execute the low-level drawing commands on the WebGPU backend
     ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), render_pass);
 }
 
@@ -271,7 +255,6 @@ void Renderer::update_frame() {
     // get framebuffersize from glfw
     int width, height;
     glfwGetFramebufferSize(m_window, &width, &height);
-    //printf("Framebuffer size: %d %d, width: %d, height: %d\n", width, height, m_width, m_height);
 
     if (m_user_callback) {
         m_user_callback();
@@ -294,17 +277,18 @@ void Renderer::update_frame() {
         std::cerr << "Cannot acquire next swap chain texture" << std::endl;
         exit(1);
     }
-    WGPUCommandEncoderDescriptor commandEncoderDesc = {};
-    commandEncoderDesc.label                        = to_string_view("Command Encoder");
-    WGPUCommandEncoder encoder                      = wgpuDeviceCreateCommandEncoder(m_device, &commandEncoderDesc);
+    WGPUCommandEncoderDescriptor command_encoder_desc = {};
+    command_encoder_desc.label                        = to_string_view("Command Encoder");
+    WGPUCommandEncoder encoder                        = wgpuDeviceCreateCommandEncoder(m_device, &command_encoder_desc);
 
     WGPURenderPassEncoder render_pass = create_render_pass(next_texture, encoder);
 
+    // Draw all drawables
     for (auto& drawable : m_drawables) {
         drawable.second->draw(render_pass);
     }
 
-    // We add the GUI drawing commands to the render pass
+    // Update GUI and Guizmo manipulators
     update_gui(render_pass);
 
     wgpuRenderPassEncoderEnd(render_pass);
@@ -312,9 +296,9 @@ void Renderer::update_frame() {
 
     wgpuTextureViewRelease(next_texture);
 
-    WGPUCommandBufferDescriptor cmdBufferDescriptor{};
-    cmdBufferDescriptor.label = to_string_view("Command buffer");
-    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &cmdBufferDescriptor);
+    WGPUCommandBufferDescriptor cmd_buffer_descriptor{};
+    cmd_buffer_descriptor.label = to_string_view("Command buffer");
+    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &cmd_buffer_descriptor);
     wgpuCommandEncoderRelease(encoder);
     wgpuQueueSubmit(m_queue, 1, &command);
     wgpuCommandBufferRelease(command);
@@ -351,7 +335,7 @@ Drawable* Renderer::register_drawable(std::string_view name, std::unique_ptr<Dra
     glm::vec3 center         = (global_bb.lower + global_bb.upper) * 0.5f;
     glm::vec3 offset         = current_eye - current_center;
     glm::vec3 new_eye        = center + offset;
-    m_camera                 = Camera(new_eye, center, m_camera.up());
+    //m_camera                 = Camera(new_eye, center, m_camera.up());
     on_camera_update();
 
     return slot.get();
@@ -503,6 +487,9 @@ void Renderer::initialize_gui() {
     init_info.RenderTargetFormat      = m_swap_chain_format;
     init_info.DepthStencilFormat      = m_depth_texture_format;
     ImGui_ImplWGPU_Init(&init_info);
+
+    // Initialize ImGuizmo
+    ImGuizmo::SetImGuiContext(ImGui::GetCurrentContext());
 }
 
 Renderer::Renderer() : m_camera({0, 0, 5}, {0, 0, 0}, {0, 1, 0}) {
@@ -516,13 +503,24 @@ Renderer::Renderer() : m_camera({0, 0, 5}, {0, 0, 0}, {0, 1, 0}) {
     glfwGetFramebufferSize(m_window, &fb_width, &fb_height);
     m_width  = fb_width;
     m_height = fb_height;
+    update_projection();
 
     configure_surface();
     initialize_depth_texture();
     initialize_gui();
 }
 
+void Renderer::update_projection() {
+    float aspect_ratio = static_cast<float>(m_width) / static_cast<float>(m_height);
+    float far_plane    = 100.0f;
+    float near_plane   = 0.01f;
+    float fov          = glm::radians(45.0f);
+    m_projection = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
+}
+
 void Renderer::on_camera_update() {
+    update_projection();
+
     for (auto& drawable : m_drawables) {
         drawable.second->on_camera_update();
     }
@@ -592,6 +590,43 @@ void Renderer::resize(int width, int height) {
     initialize_depth_texture();
 
     on_camera_update();
+}
+
+void Renderer::handle_guizmo(Drawable* drawable) {
+    // Get view and projection matrices
+    glm::mat4 view = m_camera.transform();
+    glm::mat4 proj = m_projection;
+    
+    TransformStatus status = drawable->get_transform_status();
+    if (status == TransformStatus::None) return;
+        
+    glm::mat4 transform = *drawable->get_transform();
+        
+    ImGuizmo::OPERATION operation;
+    switch (status) {
+        case TransformStatus::Translation:
+            operation = ImGuizmo::TRANSLATE;
+            break;
+        case TransformStatus::Rotation:
+            operation = ImGuizmo::ROTATE;
+            break;
+        case TransformStatus::Scale:
+            operation = ImGuizmo::SCALE;
+            break;
+        default:
+            return;
+    }
+
+    // Manipulate
+    if (ImGuizmo::Manipulate(
+        glm::value_ptr(view),
+        glm::value_ptr(proj),
+        operation,
+        ImGuizmo::WORLD,
+        glm::value_ptr(transform))) {
+        
+        drawable->set_transform(transform);
+    }
 }
 
 } // namespace rr

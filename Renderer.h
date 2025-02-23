@@ -2,8 +2,10 @@
 #pragma once
 
 #include "Camera.h"
+#include "BoundingBox.h"
 #include <GLFW/glfw3.h>
 #include <webgpu/webgpu.h>
+
 
 #include <array>
 #include <functional>
@@ -11,6 +13,8 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+
+struct ImGuiIO;
 
 namespace rr {
 
@@ -33,6 +37,7 @@ public:
     WGPUTextureFormat m_depth_texture_format;
 
     Camera m_camera;
+    glm::mat4 m_projection;
 
     // Mouse drag state
     struct {
@@ -75,7 +80,9 @@ public:
     void initialize_queue();
     void initialize_depth_texture();
     void initialize_gui();
+    void initialize_guizmo();
 
+    void update_projection();
     void on_camera_update();
     void resize(int width, int height);
 
@@ -88,6 +95,7 @@ public:
 
     void terminate_gui();                              // called in onFinish
     void update_gui(WGPURenderPassEncoder renderPass); // called in onFrame
+    void handle_guizmo(Drawable* drawable);
 };
 
 WGPUStringView to_string_view(const char* str);

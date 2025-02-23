@@ -5,7 +5,10 @@ int main() {
     std::string path = std::string(RESOURCE_DIR) + "/mammoth_simple.obj";
     rr::Mesh mesh = rr::load_mesh(path);
 
-    rr::VisualMesh* visual_mesh = rr::make_visual("mammoth", mesh);
+    auto sphere = rr::create_sphere(10, 10).scale(0.1f);
+
+    rr::VisualMesh* vm = rr::make_visual("mammoth", mesh);
+    rr::VisualMesh* vs = rr::make_visual("sphere", sphere);
 
     rr::show();
 

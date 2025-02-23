@@ -36,6 +36,7 @@ struct Mesh {
 
     Mesh& translate(const glm::vec3& p);
     Mesh& scale(const glm::vec3& s);
+    Mesh& scale(float s);
     Mesh& triangulate();
 };
 

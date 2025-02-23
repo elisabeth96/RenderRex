@@ -18,6 +18,7 @@ target_link_libraries(webgpu INTERFACE dawn::webgpu_dawn)
 
 add_subdirectory(glfw3webgpu)
 add_subdirectory(imgui)
+add_subdirectory(imguizmo)
 
 # Create executable and ensure proper dependency ordering
 add_library(RenderRex STATIC
@@ -48,6 +49,7 @@ target_link_libraries(RenderRex PUBLIC
 	glfw 
 	glfw3webgpu 
 	imgui 
+	imguizmo
 	webgpu)
 
 #enable asan

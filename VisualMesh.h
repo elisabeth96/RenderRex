@@ -13,11 +13,11 @@
 namespace rr {
 
 struct VisualMeshUniforms {
-    glm::mat4x4 projectionMatrix;
-    glm::mat4x4 viewMatrix;
-    glm::mat4x4 modelMatrix;
-    glm::vec4   wireframeColor = glm::vec4(0.0f, 0.0f, 0.0f, 1.00f);
-    glm::ivec4  showWireframe  = glm::ivec4(1, 0, 0, 0);
+    glm::mat4x4 projection_matrix;
+    glm::mat4x4 view_matrix;
+    glm::mat4x4 model_matrix = glm::mat4x4(1.0f);
+    glm::vec4   wireframe_color = glm::vec4(0.0f, 0.0f, 0.0f, 1.00f);
+    glm::ivec4  show_wireframe  = glm::ivec4(1, 0, 0, 0);
 };
 
 static_assert(sizeof(VisualMeshUniforms) % 16 == 0);
@@ -43,45 +43,11 @@ public:
 
     void on_camera_update() override;
 
-    void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visible);
-        if (m_visible) {
+    void update_ui(std::string name, int index) override;
 
-            bool update_uniforms = false;
-            bool update_color    = false;
-            update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
-            update_uniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
-            m_uniforms.showWireframe[0] = m_show_wireframe ? 1 : 0;
-            if (m_show_wireframe) {
-                update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframeColor);
-            }
+    void set_transform(const glm::mat4& transform) override;
 
-            if (update_uniforms)
-                m_uniforms_dirty = true;
-
-            if (update_color) {
-                auto it = std::find_if(m_color_properties.begin(), m_color_properties.end(),
-                                       [](const auto& pair) { return pair.second->is_enabled(); });
-                if (it == m_color_properties.end()) {
-                    for (auto& attr : m_vertex_attributes) {
-                        attr.color = m_mesh_color;
-                    }
-                    m_attributes_dirty = true;
-                }
-            }
-
-            // face color properties
-            bool face_colors_changed = false;
-            for (auto& [name, prop] : m_color_properties) {
-                bool is_enabled = prop->is_enabled();
-                face_colors_changed |= ImGui::Checkbox(name.c_str(), &is_enabled);
-                prop->set_enabled(is_enabled);
-            }
-
-            if (face_colors_changed)
-                update_face_colors();
-        }
-    }
+    const glm::mat4* get_transform() const override;
 
     FaceVectorProperty* add_face_vectors(std::string_view name, const std::vector<glm::vec3>& vectors);
 

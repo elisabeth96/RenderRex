@@ -24,6 +24,10 @@ Mesh& Mesh::scale(const glm::vec3& s) {
     return *this;
 }
 
+Mesh& Mesh::scale(float s) {
+    return scale(glm::vec3(s));
+}
+
 Mesh& Mesh::triangulate() {
     // Create temporary vectors to store the new triangulated faces
     std::vector<Face> new_position_faces;
