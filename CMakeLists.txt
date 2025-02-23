@@ -10,7 +10,7 @@ else()
 	target_link_options(glfw INTERFACE -sUSE_GLFW=3)
 endif()
 
-set(CMAKE_PREFIX_PATH "C:/Users/janos/Documents/Projects/dawn/install/Release")
+set(CMAKE_PREFIX_PATH "/Users/elisabeth/projects/dawn/install/Release")
 find_package(Dawn REQUIRED)
 
 add_library(webgpu INTERFACE)
