@@ -3,6 +3,7 @@
 #include "Camera.h"
 #include "InstancedMesh.h"
 #include "Mesh.h"
+#include "MeshIO.h"
 #include "Primitives.h"
 #include "Property.h"
 #include "Renderer.h"
@@ -364,9 +365,42 @@ VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, cons
         t[3][2] = p.z;
         transforms.push_back(t);
     }
-    m_spheres->set_instance_data(transforms, {1, 0, 0});
+    m_spheres->set_instance_data(transforms, {m_color.x, m_color.y, m_color.z});
     m_spheres->upload_instance_data();
     //  configure_render_pipeline();
+}
+
+VisualLineNetwork::VisualLineNetwork(const std::vector<glm::vec3>&           positions,
+                                     const std::vector<std::pair<int, int>>& lines, const Renderer& renderer)
+    : Drawable(&renderer, BoundingBox(positions)) {
+    Mesh line_mesh = create_cylinder(50).triangulate();
+    save_obj(std::string(RESOURCE_DIR) + "/temp.obj", line_mesh);
+    set_flat_normals(line_mesh);
+    m_lines = std::make_unique<InstancedMesh>(line_mesh, lines.size(), renderer);
+    std::vector<glm::mat4x4> transforms;
+
+    for (auto& line : lines) {
+        glm::vec3 p1 = positions[line.first];
+        glm::vec3 p2 = positions[line.second];
+        glm::vec3 p  = (p1 + p2) / 2.0f;
+        glm::vec3 d  = p2 - p1;
+        float     l  = glm::length(d);
+        d            = glm::normalize(d);
+
+        glm::vec3 default_dir(0.0f, 0.0f, 1.0f);
+
+        glm::mat4 scaling     = glm::scale(glm::mat4(1), glm::vec3(m_radius, m_radius, l));
+        glm::mat4 translation = glm::translate(glm::mat4(1), p);
+
+        float     angle         = acos(glm::dot(default_dir, d));
+        glm::vec3 rotation_axis = glm::normalize(glm::cross(default_dir, d));
+        glm::mat4 rotation      = glm::rotate(glm::mat4(1.0f), angle, rotation_axis);
+
+        glm::mat4 t = translation * rotation * scaling;
+        transforms.push_back(t);
+    }
+    m_lines->set_instance_data(transforms, m_color);
+    m_lines->upload_instance_data();
 }
 
 } // namespace rr

@@ -25,7 +25,10 @@ VisualMesh* make_visual(std::string name, std::vector<glm::vec3>& positions,
 
 VisualMesh* make_visual(std::string name, const Mesh& mesh);
 
-VisualPointCloud* make_visual(std::string name, const std::vector<glm::vec3> pos);
+VisualPointCloud* make_visual(std::string name, const std::vector<glm::vec3>& pos);
+
+VisualLineNetwork* make_visual(std::string name, const std::vector<glm::vec3>& pos,
+                               const std::vector<std::pair<int, int>>& lines);
 
 InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances);
 

@@ -177,8 +177,6 @@ public:
             set_radius(0.0f);
         }
     }
-
-public:
     std::unique_ptr<InstancedMesh> m_spheres;
     float                          m_init_radius = 0.001f;
     // for Imgui interface:
@@ -186,4 +184,54 @@ public:
     float  m_radius = 1.0f;
 };
 
+class VisualLineNetwork : public Drawable {
+public:
+    VisualLineNetwork(const std::vector<glm::vec3>& positions, const std::vector<std::pair<int, int>>& lines,
+                      const Renderer& renderer);
+
+    void draw(WGPURenderPassEncoder render_pass) override {
+        m_lines->draw(render_pass);
+    }
+
+    void on_camera_update() override {
+        m_lines->on_camera_update();
+    }
+
+    void set_color(const glm::vec3& color) {
+        m_lines->set_color(color);
+        m_lines->upload_instance_data();
+    };
+
+    /* void set_radius(float radius) {
+        float                      scale         = radius;
+        std::vector<InstanceData>& instance_data = m_lines->get_instance_data();
+        for (auto& s : instance_data) {
+            s.transform[0][0] = scale;
+            s.transform[1][1] = scale;
+            s.transform[2][2] = scale;
+        }
+        m_lines->upload_instance_data();
+    };*/
+
+    void update_ui(std::string name, int index) override {
+        ImGui::Checkbox(name.c_str(), &m_visable);
+        // Use the temporary variable for the checkbox.
+        if (m_visable) {
+            // std::string label_radius = "set radius ##" + std::to_string(index);
+            // ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.5f, 10.5f);
+            std::string label_color = "change color ##" + std::to_string(index);
+            ImGui::ColorEdit3(label_color.c_str(), (float*)&m_color); // Edit 3 floats representing a color
+            glm::vec3 newColor(m_color.x, m_color.y, m_color.z);
+            set_color(newColor);
+            // set_radius(m_radius * m_init_radius);
+        } else {
+            // Handle the case when the checkbox is unchecked
+            // set_radius(0.0f);
+        }
+    }
+
+    std::unique_ptr<InstancedMesh> m_lines;
+    float                          m_radius = 0.01f;
+    glm::vec3                      m_color  = glm::vec3(0.45f, 0.55f, 0.60f);
+};
 } // namespace rr

@@ -143,6 +143,18 @@ int main() {
     vm->add_face_colors("colors2", colors2);
     vm->add_face_colors("colors3", colors3);
 
+    std::vector<glm::vec3> positions = {
+        glm::vec3(0.0f, 0.0f, 0.0f), // Point 0
+        glm::vec3(1.0f, 0.0f, 0.0f), // Point 1
+        glm::vec3(0.0f, 1.0f, 0.0f), // Point 2
+        glm::vec3(0.0f, 0.0f, 1.0f)  // Point 3
+    };
+
+    std::vector<std::pair<int, int>> lines = {{0, 1}, {0, 2}, {0, 3}, {1, 2}, {2, 3}};
+
+    // Create the VisualLineNetwork using our factory function.
+    rr::VisualLineNetwork* network = rr::make_visual("TestNetwork", positions, lines);
+
     // rr::set_user_callback(callback2);
 
     rr::show();
