@@ -6,7 +6,6 @@
 #include "Property.h"
 #include "Renderer.h"
 
-#include "glm/glm.hpp"
 #include <array>
 #include <imgui.h>
 #include <unordered_map>
@@ -45,22 +44,22 @@ public:
     void on_camera_update() override;
 
     void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visable);
-        if (m_visable) {
+        ImGui::Checkbox(name.c_str(), &m_visible);
+        if (m_visible) {
 
-            bool updateUniforms = false;
-            bool updateColor    = false;
-            updateColor |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
-            updateUniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
+            bool update_uniforms = false;
+            bool update_color    = false;
+            update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
+            update_uniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
             m_uniforms.showWireframe[0] = m_show_wireframe ? 1 : 0;
             if (m_show_wireframe) {
-                updateUniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframeColor);
+                update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframeColor);
             }
 
-            if (updateUniforms)
+            if (update_uniforms)
                 m_uniforms_dirty = true;
 
-            if (updateColor) {
+            if (update_color) {
                 auto it = std::find_if(m_color_properties.begin(), m_color_properties.end(),
                                        [](const auto& pair) { return pair.second->is_enabled(); });
                 if (it == m_color_properties.end()) {
@@ -74,9 +73,9 @@ public:
             // face color properties
             bool face_colors_changed = false;
             for (auto& [name, prop] : m_color_properties) {
-                bool isEnabled = prop->is_enabled();
-                face_colors_changed |= ImGui::Checkbox(name.c_str(), &isEnabled);
-                prop->set_enabled(isEnabled);
+                bool is_enabled = prop->is_enabled();
+                face_colors_changed |= ImGui::Checkbox(name.c_str(), &is_enabled);
+                prop->set_enabled(is_enabled);
             }
 
             if (face_colors_changed)
@@ -89,10 +88,10 @@ public:
     FaceColorProperty* add_face_colors(std::string_view name, const std::vector<glm::vec3>& colors);
 
     void update_face_colors() {
-        bool usingFaceProperty = false;
+        bool using_face_property = false;
         for (auto& [name, prop] : m_color_properties) {
             if (prop->is_enabled()) {
-                usingFaceProperty                    = true;
+                using_face_property                    = true;
                 const std::vector<glm::vec3>& colors = prop->get_colors();
 
                 size_t num_attributes = m_vertex_attributes.size();
@@ -103,7 +102,7 @@ public:
             }
         }
 
-        if (!usingFaceProperty) {
+        if (!using_face_property) {
             size_t num_attributes = m_vertex_attributes.size();
             for (size_t i = 0; i < num_attributes; ++i) {
                 m_vertex_attributes[i].color = m_mesh_color;
@@ -115,10 +114,10 @@ public:
     Mesh m_mesh;
 
 private:
-    WGPUBuffer         m_vertexBuffer  = nullptr;
-    WGPUBuffer         m_uniformBuffer = nullptr;
-    WGPUBindGroup      m_bindGroup     = nullptr;
-    WGPURenderPipeline m_pipeline      = nullptr;
+    WGPUBuffer         m_vertex_buffer  = nullptr;
+    WGPUBuffer         m_uniform_buffer = nullptr;
+    WGPUBindGroup      m_bind_group     = nullptr;
+    WGPURenderPipeline m_pipeline       = nullptr;
 
     bool               m_uniforms_dirty = false;
     VisualMeshUniforms m_uniforms;
@@ -162,9 +161,8 @@ public:
     };
 
     void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visable);
-        // Use the temporary variable for the checkbox.
-        if (m_visable) {
+        ImGui::Checkbox(name.c_str(), &m_visible);
+        if (m_visible) {
             std::string label_radius = "scale radius ##" + std::to_string(index);
             ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.5f, 10.5f);
             std::string label_color = "change color ##" + std::to_string(index);
@@ -177,6 +175,7 @@ public:
             set_radius(0.0f);
         }
     }
+
     std::unique_ptr<InstancedMesh> m_spheres;
     float                          m_init_radius = 0.001f;
     // for Imgui interface:
@@ -214,9 +213,8 @@ public:
     };*/
 
     void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visable);
-        // Use the temporary variable for the checkbox.
-        if (m_visable) {
+        ImGui::Checkbox(name.c_str(), &m_visible);
+        if (m_visible) {
             // std::string label_radius = "set radius ##" + std::to_string(index);
             // ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.5f, 10.5f);
             std::string label_color = "change color ##" + std::to_string(index);
@@ -230,6 +228,7 @@ public:
         }
     }
 
+    bool m_visible = true;
     std::unique_ptr<InstancedMesh> m_lines;
     float                          m_radius = 0.01f;
     glm::vec3                      m_color  = glm::vec3(0.45f, 0.55f, 0.60f);

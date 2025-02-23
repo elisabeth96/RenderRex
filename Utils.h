@@ -17,4 +17,6 @@ Mesh load_mesh(std::istream& stream);
 
 void save_obj(std::string_view path, const Mesh& mesh);
 
+glm::vec3 get_random_color();
+
 } // namespace rr

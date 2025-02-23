@@ -20,8 +20,7 @@ add_subdirectory(glfw3webgpu)
 add_subdirectory(imgui)
 
 # Create executable and ensure proper dependency ordering
-add_executable(RenderRex
-		main.cpp
+add_library(RenderRex STATIC
 		RenderRex.h
 		RenderRex.cpp
 		Drawable.h
@@ -37,13 +36,15 @@ add_executable(RenderRex
 		VisualMesh.cpp
 		InstancedMesh.h
 		InstancedMesh.cpp
-		MeshIO.h
-		MeshIO.cpp
+		Utils.h
+		Utils.cpp
 		Property.h
 		Property.cpp
 )
 
-target_link_libraries(RenderRex PRIVATE 
+target_include_directories(RenderRex PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+
+target_link_libraries(RenderRex PUBLIC 
 	glfw 
 	glfw3webgpu 
 	imgui 
@@ -68,5 +69,7 @@ if (MSVC)
 	target_compile_options(RenderRex PUBLIC /wd4201)
 endif (MSVC)
 
-target_compile_definitions(RenderRex PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+target_compile_definitions(RenderRex PUBLIC RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}")
+
+add_subdirectory(examples)
 

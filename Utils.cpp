@@ -1,5 +1,5 @@
 
-#include "MeshIO.h"
+#include "Utils.h"
 #include "Mesh.h"
 
 #include <array>
@@ -145,6 +145,34 @@ void save_obj(std::string_view path, const Mesh& mesh) {
         }
         file << '\n';
     }
+}
+
+glm::vec3 hsvToRgb(float hue, float saturation, float value) {
+    float     c = value * saturation;
+    float     x = c * (1.f - std::abs(std::fmod(hue / 60.0f, 2.f) - 1.f));
+    float     m = value - c;
+    glm::vec3 rgb;
+
+    if (hue < 60)
+        rgb = {c, x, 0};
+    else if (hue < 120)
+        rgb = {x, c, 0};
+    else if (hue < 180)
+        rgb = {0, c, x};
+    else if (hue < 240)
+        rgb = {0, x, c};
+    else if (hue < 300)
+        rgb = {x, 0, c};
+    else
+        rgb = {c, 0, x};
+
+    return rgb + glm::vec3(m);
+}
+
+glm::vec3 get_random_color() {
+    static float hue = 42.0f;
+    hue              = std::fmod(hue + 137.5f, 360.0f);
+    return hsvToRgb(hue, 0.75f, 0.9f);
 }
 
 } // namespace rr

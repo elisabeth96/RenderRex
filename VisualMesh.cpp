@@ -3,7 +3,7 @@
 #include "Camera.h"
 #include "InstancedMesh.h"
 #include "Mesh.h"
-#include "MeshIO.h"
+#include "Utils.h"
 #include "Primitives.h"
 #include "Property.h"
 #include "Renderer.h"
@@ -76,14 +76,14 @@ VisualMesh::VisualMesh(const Mesh& mesh, const Renderer& renderer)
 
 void VisualMesh::release() {
     // Release resources
-    if (m_vertexBuffer == nullptr) {
+    if (m_vertex_buffer == nullptr) {
         return;
     }
-    wgpuBufferDestroy(m_vertexBuffer);
-    wgpuBufferRelease(m_vertexBuffer);
-    wgpuBufferDestroy(m_uniformBuffer);
-    wgpuBufferRelease(m_uniformBuffer);
-    wgpuBindGroupRelease(m_bindGroup);
+    wgpuBufferDestroy(m_vertex_buffer);
+    wgpuBufferRelease(m_vertex_buffer);
+    wgpuBufferDestroy(m_uniform_buffer);
+    wgpuBufferRelease(m_uniform_buffer);
+    wgpuBindGroupRelease(m_bind_group);
     wgpuRenderPipelineRelease(m_pipeline);
 }
 
@@ -91,52 +91,52 @@ VisualMesh::~VisualMesh() {
     release();
 }
 
-void shaderCompilationCallback(WGPUCompilationInfoRequestStatus, WGPUCompilationInfo const* compilationInfo, void*,
+void shaderCompilationCallback(WGPUCompilationInfoRequestStatus, WGPUCompilationInfo const* compilation_info, void*,
                                void*) {
-    if (compilationInfo) {
-        for (uint32_t i = 0; i < compilationInfo->messageCount; ++i) {
-            WGPUCompilationMessage const& message = compilationInfo->messages[i];
+    if (compilation_info) {
+        for (uint32_t i = 0; i < compilation_info->messageCount; ++i) {
+            WGPUCompilationMessage const& message = compilation_info->messages[i];
 
-            const char* messageType;
+            const char* message_type;
             switch (message.type) {
             case WGPUCompilationMessageType_Error:
-                messageType = "Error";
+                message_type = "Error";
                 break;
             case WGPUCompilationMessageType_Warning:
-                messageType = "Warning";
+                message_type = "Warning";
                 break;
             case WGPUCompilationMessageType_Info:
-                messageType = "Info";
+                message_type = "Info";
                 break;
             default:
-                messageType = "Unknown";
+                message_type = "Unknown";
                 break;
             }
 
-            std::cerr << messageType << " at line " << message.lineNum << ", column " << message.linePos << ": "
+            std::cerr << message_type << " at line " << message.lineNum << ", column " << message.linePos << ": "
                       << to_string(message.message) << std::endl;
         }
     }
 }
 
-WGPUShaderModule createShaderModule(WGPUDevice device, const char* shaderSource) {
-    WGPUShaderModuleDescriptor     shaderDesc{};
-    WGPUShaderModuleWGSLDescriptor shaderCodeDesc{};
+WGPUShaderModule createShaderModule(WGPUDevice device, const char* shader_source) {
+    WGPUShaderModuleDescriptor     shader_desc{};
+    WGPUShaderModuleWGSLDescriptor shader_code_desc{};
 
-    shaderCodeDesc.chain.next  = nullptr;
-    shaderCodeDesc.chain.sType = WGPUSType_ShaderSourceWGSL;
-    shaderDesc.nextInChain     = &shaderCodeDesc.chain;
-    shaderCodeDesc.code        = to_string_view(shaderSource);
+    shader_code_desc.chain.next  = nullptr;
+    shader_code_desc.chain.sType = WGPUSType_ShaderSourceWGSL;
+    shader_desc.nextInChain     = &shader_code_desc.chain;
+    shader_code_desc.code        = to_string_view(shader_source);
 
-    WGPUShaderModule shaderModule = wgpuDeviceCreateShaderModule(device, &shaderDesc);
+    WGPUShaderModule shader_module = wgpuDeviceCreateShaderModule(device, &shader_desc);
 
     WGPUCompilationInfoCallbackInfo callback_info = {};
     callback_info.callback                        = shaderCompilationCallback;
     callback_info.mode                            = WGPUCallbackMode_AllowSpontaneous;
 
-    wgpuShaderModuleGetCompilationInfo(shaderModule, callback_info);
+    wgpuShaderModuleGetCompilationInfo(shader_module, callback_info);
 
-    return shaderModule;
+    return shader_module;
 }
 
 void VisualMesh::configure_render_pipeline() {
@@ -145,143 +145,143 @@ void VisualMesh::configure_render_pipeline() {
 
     m_vertex_attributes = create_vertex_attributes(m_mesh, m_mesh_color);
 
-    WGPUShaderModule shaderModule = createShaderModule(renderer.m_device, shaderCode);
+    WGPUShaderModule shader_module = createShaderModule(renderer.m_device, shaderCode);
 
     // Vertex fetch
-    std::vector<WGPUVertexAttribute> vertexAttribs(5);
+    std::vector<WGPUVertexAttribute> vertex_attribs(5);
 
     // Position attribute
-    vertexAttribs[0].shaderLocation = 0;
-    vertexAttribs[0].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[0].offset         = 0;
+    vertex_attribs[0].shaderLocation = 0;
+    vertex_attribs[0].format         = WGPUVertexFormat_Float32x3;
+    vertex_attribs[0].offset         = 0;
 
     // Normal attribute
-    vertexAttribs[1].shaderLocation = 1;
-    vertexAttribs[1].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[1].offset         = offsetof(VisualMeshVertexAttributes, normal);
+    vertex_attribs[1].shaderLocation = 1;
+    vertex_attribs[1].format         = WGPUVertexFormat_Float32x3;
+    vertex_attribs[1].offset         = offsetof(VisualMeshVertexAttributes, normal);
 
     // Bary attribute
-    vertexAttribs[2].shaderLocation = 2;
-    vertexAttribs[2].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[2].offset         = offsetof(VisualMeshVertexAttributes, bary);
+    vertex_attribs[2].shaderLocation = 2;
+    vertex_attribs[2].format         = WGPUVertexFormat_Float32x3;
+    vertex_attribs[2].offset         = offsetof(VisualMeshVertexAttributes, bary);
 
     // Edge mask attribute
-    vertexAttribs[3].shaderLocation = 3;
-    vertexAttribs[3].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[3].offset         = offsetof(VisualMeshVertexAttributes, edge_mask);
+    vertex_attribs[3].shaderLocation = 3;
+    vertex_attribs[3].format         = WGPUVertexFormat_Float32x3;
+    vertex_attribs[3].offset         = offsetof(VisualMeshVertexAttributes, edge_mask);
 
-    vertexAttribs[4].shaderLocation = 4;
-    vertexAttribs[4].format         = WGPUVertexFormat_Float32x3;
-    vertexAttribs[4].offset         = offsetof(VisualMeshVertexAttributes, color);
+    vertex_attribs[4].shaderLocation = 4;
+    vertex_attribs[4].format         = WGPUVertexFormat_Float32x3;
+    vertex_attribs[4].offset         = offsetof(VisualMeshVertexAttributes, color);
 
-    WGPUVertexBufferLayout vertexBufferLayout = {};
-    vertexBufferLayout.attributeCount         = (uint32_t)vertexAttribs.size();
-    vertexBufferLayout.attributes             = vertexAttribs.data();
-    vertexBufferLayout.arrayStride            = sizeof(VisualMeshVertexAttributes);
+    WGPUVertexBufferLayout vertex_buffer_layout = {};
+    vertex_buffer_layout.attributeCount         = (uint32_t)vertex_attribs.size();
+    vertex_buffer_layout.attributes             = vertex_attribs.data();
+    vertex_buffer_layout.arrayStride            = sizeof(VisualMeshVertexAttributes);
 
-    vertexBufferLayout.stepMode = WGPUVertexStepMode_Vertex;
+    vertex_buffer_layout.stepMode = WGPUVertexStepMode_Vertex;
 
-    WGPURenderPipelineDescriptor pipelineDesc = {};
+    WGPURenderPipelineDescriptor pipeline_desc = {};
 
-    pipelineDesc.vertex.bufferCount = 1;
-    pipelineDesc.vertex.buffers     = &vertexBufferLayout;
+    pipeline_desc.vertex.bufferCount = 1;
+    pipeline_desc.vertex.buffers     = &vertex_buffer_layout;
 
-    pipelineDesc.vertex.module        = shaderModule;
-    pipelineDesc.vertex.entryPoint    = to_string_view("vs_main");
-    pipelineDesc.vertex.constantCount = 0;
-    pipelineDesc.vertex.constants     = nullptr;
+    pipeline_desc.vertex.module        = shader_module;
+    pipeline_desc.vertex.entryPoint    = to_string_view("vs_main");
+    pipeline_desc.vertex.constantCount = 0;
+    pipeline_desc.vertex.constants     = nullptr;
 
-    pipelineDesc.primitive.topology         = WGPUPrimitiveTopology_TriangleList;
-    pipelineDesc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
-    pipelineDesc.primitive.frontFace        = WGPUFrontFace_CCW;
-    pipelineDesc.primitive.cullMode         = WGPUCullMode_None;
+    pipeline_desc.primitive.topology         = WGPUPrimitiveTopology_TriangleList;
+    pipeline_desc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
+    pipeline_desc.primitive.frontFace        = WGPUFrontFace_CCW;
+    pipeline_desc.primitive.cullMode         = WGPUCullMode_None;
 
-    WGPUFragmentState fragmentState = {};
-    pipelineDesc.fragment           = &fragmentState;
-    fragmentState.module            = shaderModule;
-    fragmentState.entryPoint        = to_string_view("fs_main");
-    fragmentState.constantCount     = 0;
-    fragmentState.constants         = nullptr;
+    WGPUFragmentState fragment_state = {};
+    pipeline_desc.fragment           = &fragment_state;
+    fragment_state.module            = shader_module;
+    fragment_state.entryPoint        = to_string_view("fs_main");
+    fragment_state.constantCount     = 0;
+    fragment_state.constants         = nullptr;
 
-    WGPUBlendState blendState  = {};
-    blendState.color.srcFactor = WGPUBlendFactor_SrcAlpha;
-    blendState.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
-    blendState.color.operation = WGPUBlendOperation_Add;
-    blendState.alpha.srcFactor = WGPUBlendFactor_Zero;
-    blendState.alpha.dstFactor = WGPUBlendFactor_One;
-    blendState.alpha.operation = WGPUBlendOperation_Add;
+    WGPUBlendState blend_state  = {};
+    blend_state.color.srcFactor = WGPUBlendFactor_SrcAlpha;
+    blend_state.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
+    blend_state.color.operation = WGPUBlendOperation_Add;
+    blend_state.alpha.srcFactor = WGPUBlendFactor_Zero;
+    blend_state.alpha.dstFactor = WGPUBlendFactor_One;
+    blend_state.alpha.operation = WGPUBlendOperation_Add;
 
-    WGPUColorTargetState colorTarget = {};
-    colorTarget.format               = renderer.m_swapChainFormat;
-    colorTarget.blend                = &blendState;
-    colorTarget.writeMask            = WGPUColorWriteMask_All;
+    WGPUColorTargetState color_target = {};
+    color_target.format               = renderer.m_swapChainFormat;
+    color_target.blend                = &blend_state;
+    color_target.writeMask            = WGPUColorWriteMask_All;
 
-    fragmentState.targetCount = 1;
-    fragmentState.targets     = &colorTarget;
+    fragment_state.targetCount = 1;
+    fragment_state.targets     = &color_target;
 
-    WGPUDepthStencilState depthStencilState = {};
-    depthStencilState.depthCompare          = WGPUCompareFunction_Less;
-    depthStencilState.depthWriteEnabled     = WGPUOptionalBool_True;
-    depthStencilState.format                = renderer.m_depthTextureFormat;
-    depthStencilState.stencilReadMask       = 0;
-    depthStencilState.stencilWriteMask      = 0;
+    WGPUDepthStencilState depth_stencil_state = {};
+    depth_stencil_state.depthCompare          = WGPUCompareFunction_Less;
+    depth_stencil_state.depthWriteEnabled     = WGPUOptionalBool_True;
+    depth_stencil_state.format                = renderer.m_depthTextureFormat;
+    depth_stencil_state.stencilReadMask       = 0;
+    depth_stencil_state.stencilWriteMask      = 0;
 
-    pipelineDesc.depthStencil = &depthStencilState;
+    pipeline_desc.depthStencil = &depth_stencil_state;
 
-    pipelineDesc.multisample.count                  = 1;
-    pipelineDesc.multisample.mask                   = ~0u;
-    pipelineDesc.multisample.alphaToCoverageEnabled = false;
+    pipeline_desc.multisample.count                  = 1;
+    pipeline_desc.multisample.mask                   = ~0u;
+    pipeline_desc.multisample.alphaToCoverageEnabled = false;
 
     // Create binding layout (don't forget to = Default)
-    WGPUBindGroupLayoutEntry bindingLayout = {};
-    bindingLayout.binding                  = 0;
-    bindingLayout.visibility               = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
-    bindingLayout.buffer.type              = WGPUBufferBindingType_Uniform;
-    bindingLayout.buffer.minBindingSize    = sizeof(VisualMeshUniforms);
+    WGPUBindGroupLayoutEntry binding_layout = {};
+    binding_layout.binding                  = 0;
+    binding_layout.visibility               = WGPUShaderStage_Vertex | WGPUShaderStage_Fragment;
+    binding_layout.buffer.type              = WGPUBufferBindingType_Uniform;
+    binding_layout.buffer.minBindingSize    = sizeof(VisualMeshUniforms);
 
     // Create a bind group layout
-    WGPUBindGroupLayoutDescriptor bindGroupLayoutDesc{};
-    bindGroupLayoutDesc.entryCount      = 1;
-    bindGroupLayoutDesc.entries         = &bindingLayout;
-    WGPUBindGroupLayout bindGroupLayout = wgpuDeviceCreateBindGroupLayout(renderer.m_device, &bindGroupLayoutDesc);
+    WGPUBindGroupLayoutDescriptor bind_group_layout_desc{};
+    bind_group_layout_desc.entryCount      = 1;
+    bind_group_layout_desc.entries         = &binding_layout;
+    WGPUBindGroupLayout bind_group_layout = wgpuDeviceCreateBindGroupLayout(renderer.m_device, &bind_group_layout_desc);
 
     // Create the pipeline layout
-    WGPUPipelineLayoutDescriptor layoutDesc{};
-    layoutDesc.bindGroupLayoutCount = 1;
-    layoutDesc.bindGroupLayouts     = (WGPUBindGroupLayout*)&bindGroupLayout;
-    WGPUPipelineLayout layout       = wgpuDeviceCreatePipelineLayout(renderer.m_device, &layoutDesc);
-    pipelineDesc.layout             = layout;
+    WGPUPipelineLayoutDescriptor layout_desc{};
+    layout_desc.bindGroupLayoutCount = 1;
+    layout_desc.bindGroupLayouts     = (WGPUBindGroupLayout*)&bind_group_layout;
+    WGPUPipelineLayout layout       = wgpuDeviceCreatePipelineLayout(renderer.m_device, &layout_desc);
+    pipeline_desc.layout             = layout;
 
     // Create vertex buffer
-    WGPUBufferDescriptor bufferDesc = {};
-    bufferDesc.size                 = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
-    bufferDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
-    bufferDesc.mappedAtCreation     = false;
-    m_vertexBuffer                  = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
-    wgpuQueueWriteBuffer(renderer.m_queue, m_vertexBuffer, 0, m_vertex_attributes.data(), bufferDesc.size);
+    WGPUBufferDescriptor buffer_desc = {};
+    buffer_desc.size                 = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
+    buffer_desc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
+    buffer_desc.mappedAtCreation     = false;
+    m_vertex_buffer                  = wgpuDeviceCreateBuffer(renderer.m_device, &buffer_desc);
+    wgpuQueueWriteBuffer(renderer.m_queue, m_vertex_buffer, 0, m_vertex_attributes.data(), buffer_desc.size);
 
     // Create uniform buffer
-    bufferDesc.size             = sizeof(VisualMeshUniforms);
-    bufferDesc.usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-    bufferDesc.mappedAtCreation = false;
-    m_uniformBuffer             = wgpuDeviceCreateBuffer(renderer.m_device, &bufferDesc);
+    buffer_desc.size             = sizeof(VisualMeshUniforms);
+    buffer_desc.usage            = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+    buffer_desc.mappedAtCreation = false;
+    m_uniform_buffer             = wgpuDeviceCreateBuffer(renderer.m_device, &buffer_desc);
 
     // Create a binding
     WGPUBindGroupEntry binding{};
     binding.binding = 0;
-    binding.buffer  = m_uniformBuffer;
+    binding.buffer  = m_uniform_buffer;
     binding.offset  = 0;
     binding.size    = sizeof(VisualMeshUniforms);
 
     // A bind group contains one or multiple bindings
-    WGPUBindGroupDescriptor bindGroupDesc = {};
-    bindGroupDesc.layout                  = bindGroupLayout;
-    bindGroupDesc.entryCount              = bindGroupLayoutDesc.entryCount;
-    bindGroupDesc.entries                 = &binding;
-    m_bindGroup                           = wgpuDeviceCreateBindGroup(renderer.m_device, &bindGroupDesc);
+    WGPUBindGroupDescriptor bind_group_desc = {};
+    bind_group_desc.layout                  = bind_group_layout;
+    bind_group_desc.entryCount              = bind_group_layout_desc.entryCount;
+    bind_group_desc.entries                 = &binding;
+    m_bind_group                           = wgpuDeviceCreateBindGroup(renderer.m_device, &bind_group_desc);
 
-    m_pipeline = wgpuDeviceCreateRenderPipeline(renderer.m_device, &pipelineDesc);
-    wgpuShaderModuleRelease(shaderModule);
+    m_pipeline = wgpuDeviceCreateRenderPipeline(renderer.m_device, &pipeline_desc);
+    wgpuShaderModuleRelease(shader_module);
 
     // This has to be called here because the camera uniforms are cleared when reconfiguring
     // the pipeline. When the mesh is registered this is called from the renderer, but when
@@ -290,27 +290,25 @@ void VisualMesh::configure_render_pipeline() {
 }
 
 void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
-    if (!m_visable) {
-        return;
-    }
-
+    if (!m_visible) return;
+    
     if (m_attributes_dirty) {
         size_t size = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
-        wgpuQueueWriteBuffer(Renderer::get().m_queue, m_vertexBuffer, 0, m_vertex_attributes.data(), size);
+        wgpuQueueWriteBuffer(Renderer::get().m_queue, m_vertex_buffer, 0, m_vertex_attributes.data(), size);
         m_attributes_dirty = false;
     }
 
     if (m_uniforms_dirty) {
-        wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
+        wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniform_buffer, 0, &m_uniforms, sizeof(VisualMeshUniforms));
         m_uniforms_dirty = false;
     }
 
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
-    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertexBuffer, 0,
+    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertex_buffer, 0,
                                          m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes));
 
     // Set binding group
-    wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
+    wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bind_group, 0, nullptr);
     wgpuRenderPassEncoderDraw(render_pass, uint32_t(m_vertex_attributes.size()), 1, 0, 0);
 
     for (auto& [name, prop] : m_vector_properties) {

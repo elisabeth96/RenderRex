@@ -24,7 +24,7 @@ public:
     const Renderer* m_renderer = nullptr;
     BoundingBox     m_bbox;
 
-    bool m_visable = true;
+    bool m_visible = true;
 };
 
 } // namespace rr
