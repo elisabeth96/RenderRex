@@ -212,7 +212,7 @@ void VisualMesh::configure_render_pipeline() {
     blend_state.alpha.operation = WGPUBlendOperation_Add;
 
     WGPUColorTargetState color_target = {};
-    color_target.format               = renderer.m_swapChainFormat;
+    color_target.format               = renderer.m_swap_chain_format;
     color_target.blend                = &blend_state;
     color_target.writeMask            = WGPUColorWriteMask_All;
 
@@ -222,7 +222,7 @@ void VisualMesh::configure_render_pipeline() {
     WGPUDepthStencilState depth_stencil_state = {};
     depth_stencil_state.depthCompare          = WGPUCompareFunction_Less;
     depth_stencil_state.depthWriteEnabled     = WGPUOptionalBool_True;
-    depth_stencil_state.format                = renderer.m_depthTextureFormat;
+    depth_stencil_state.format                = renderer.m_depth_texture_format;
     depth_stencil_state.stencilReadMask       = 0;
     depth_stencil_state.stencilWriteMask      = 0;
 

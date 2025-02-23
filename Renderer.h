@@ -20,15 +20,17 @@ struct Mesh;
 
 class Renderer {
 public:
+    // framebuffer size, not that this is not necessarily the same as the window size
     uint32_t     m_width  = 1000;
     uint32_t     m_height = 1000;
+
     WGPUDevice   m_device;
     WGPUQueue    m_queue;
     WGPUInstance m_instance;
     // WGPUSwapChain     m_swapChain;
-    WGPUTextureView   m_depthTextureView;
-    WGPUTextureFormat m_swapChainFormat;
-    WGPUTextureFormat m_depthTextureFormat;
+    WGPUTextureView   m_depth_texture_view;
+    WGPUTextureFormat m_swap_chain_format;
+    WGPUTextureFormat m_depth_texture_format;
 
     Camera m_camera;
 
@@ -36,9 +38,9 @@ public:
     struct {
         bool      active = false;
         glm::vec2 last_pos;
-        float     rotationSpeed     = 0.02f;
-        float     panSpeed          = 1.f;
-        float     scrollSensitivity = 0.2f;
+        float     rotation_speed     = 0.02f;
+        float     pan_speed          = 1.f;
+        float     scroll_sensitivity = 0.2f;
     } m_drag;
 
     ~Renderer();
@@ -60,11 +62,11 @@ public:
     void set_user_callback(std::function<void()> callback);
 
     // Mouse events
-    void onMouseMove(double xpos, double ypos);
-    void onMouseButton(int button, int action, int mods);
-    void onScroll(double xoffset, double yoffset);
+    void on_mouse_move(double xpos, double ypos);
+    void on_mouse_button(int button, int action, int mods);
+    void on_scroll(double xoffset, double yoffset);
 
-private:
+public:
     Renderer();
 
     void initialize_window();

@@ -16,8 +16,6 @@
 
 namespace rr {
 
-// function to show all the meshes that are saved wherever (tbd)
-// for now, just creates a window and displays a nice color
 void show();
 
 VisualMesh* make_visual(std::string name, std::vector<glm::vec3>& positions,

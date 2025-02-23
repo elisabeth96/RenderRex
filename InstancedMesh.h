@@ -10,8 +10,8 @@ namespace rr {
 
 struct InstancedMeshUniforms {
     // We add transform matrices
-    glm::mat4x4 projectionMatrix;
-    glm::mat4x4 viewMatrix;
+    glm::mat4x4 projection_matrix;
+    glm::mat4x4 view_matrix;
 };
 
 struct InstanceData {
@@ -71,11 +71,11 @@ public:
     void upload_instance_data();
 
 private:
-    WGPUBuffer         m_vertexBuffer   = nullptr;
-    WGPUBuffer         m_uniformBuffer  = nullptr;
-    WGPUBindGroup      m_bindGroup      = nullptr;
-    WGPURenderPipeline m_pipeline       = nullptr;
-    WGPUBuffer         m_instanceBuffer = nullptr;
+    WGPUBuffer         m_vertex_buffer   = nullptr;
+    WGPUBuffer         m_uniform_buffer  = nullptr;
+    WGPUBindGroup      m_bind_group      = nullptr;
+    WGPURenderPipeline m_pipeline        = nullptr;
+    WGPUBuffer         m_instance_buffer = nullptr;
 
     InstancedMeshUniforms m_uniforms;
 

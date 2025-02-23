@@ -18,14 +18,6 @@
 
 namespace rr {
 
-// Utility function to get a WGPUStrinView from a std::string
-/* WGPUStringView to_string_view(const std::string& str) {
-    WGPUStringView view;
-    view.data   = str.c_str();
-    view.length = str.length();
-    return view;
-}*/
-
 WGPUStringView to_string_view(const char* str) {
     WGPUStringView view;
     view.data   = str;
@@ -37,157 +29,111 @@ std::string to_string(const WGPUStringView& view) {
     return std::string(view.data, view.length);
 }
 
-/*
-WGPUAdapter requestAdapterSync(WGPUInstance instance, WGPURequestAdapterOptions const* options) {
-    // A simple structure holding the local information shared with the onAdapterRequestEnded
-    // callback.
+WGPUAdapter request_adapter_sync(WGPUInstance instance, WGPURequestAdapterOptions const* options) {
     struct UserData {
-        WGPUAdapter adapter      = nullptr;
-        bool        requestEnded = false;
+        WGPUAdapter adapter = nullptr;
+        bool request_ended = false;
     };
-    UserData userData;
+    UserData user_data;
 
-    // Callback called by wgpuInstanceRequestAdapter when the request returns
-    WGPURequestAdapterCallback onAdapterRequestEnded = [](WGPURequestAdapterStatus status, WGPUAdapter adapter,
-                                                          WGPUStringView message, void* pUserData, void*) {
-        UserData& userData = *reinterpret_cast<UserData*>(pUserData);
-        if (status == WGPURequestAdapterStatus_Success) {
-            userData.adapter = adapter;
-        } else {
-            std::string str(message.data, message.data + message.length);
-            std::cout << "Could not get WebGPU adapter: " << str << std::endl;
-        }
-        userData.requestEnded = true;
-    };
-
-    WGPURequestAdapterCallbackInfo callbackInfo = {nullptr, WGPUCallbackMode_WaitAnyOnly, onAdapterRequestEnded,
-                                                   (void*)&userData, nullptr};
-
-    // Call to the WebGPU request adapter procedure
-    wgpuInstanceRequestAdapter(instance, options, callbackInfo);
-
-    // We wait until userData.requestEnded gets true
-#ifdef __EMSCRIPTEN__
-    while (!userData.requestEnded) {
-        emscripten_sleep(100);
-    }
-#endif // __EMSCRIPTEN__
-
-    assert(userData.requestEnded);
-
-    return userData.adapter;
-}
-*/
-
-WGPUAdapter requestAdapterSync(WGPUInstance instance, WGPURequestAdapterOptions const* options) {
-    struct UserData {
-        WGPUAdapter adapter      = nullptr;
-        bool        requestEnded = false;
-    };
-    UserData userData;
-
-    auto onAdapterRequestEnded = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
-                                    void* pUserData, void*) {
-        auto& ud = *reinterpret_cast<UserData*>(pUserData);
+    auto on_adapter_request_ended = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
+                                    void* p_user_data, void*) {
+        auto& ud = *reinterpret_cast<UserData*>(p_user_data);
         if (status == WGPURequestAdapterStatus_Success) {
             ud.adapter = adapter;
         } else {
             std::string str(message.data, message.data + message.length);
             std::cerr << "Could not get WebGPU adapter: " << str << std::endl;
         }
-        ud.requestEnded = true;
+        ud.request_ended = true;
     };
 
     // Important: Use AllowSpontaneous so Dawn can call back on its own thread.
-    WGPURequestAdapterCallbackInfo callbackInfo = {/* userdataLabel  */ nullptr,
-                                                   /* mode          */ WGPUCallbackMode_AllowSpontaneous,
-                                                   /* callback      */ onAdapterRequestEnded,
-                                                   /* userdata      */ &userData,
-                                                   /* scope         */ nullptr};
+    WGPURequestAdapterCallbackInfo callback_info = {
+        /* userdataLabel  */ nullptr,
+        /* mode          */ WGPUCallbackMode_AllowSpontaneous,
+        /* callback      */ on_adapter_request_ended,
+        /* userdata      */ &user_data,
+        /* scope         */ nullptr
+    };
 
-    // Request the adapter
-    wgpuInstanceRequestAdapter(instance, options, callbackInfo);
+    wgpuInstanceRequestAdapter(instance, options, callback_info);
 
-    // On native (non-Emscripten), we can just do a simple spin-wait
-    // While Dawn runs the callback on an internal thread.
-    while (!userData.requestEnded) {
+    while (!user_data.request_ended) {
 #ifdef __EMSCRIPTEN__
         emscripten_sleep(100);
 #else
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-        // Alternatively, do your main loop tasks here.
     }
 
-    // Now the callback should have set 'userData.adapter' or reported an error
-    assert(userData.requestEnded);
-    return userData.adapter;
+    assert(user_data.request_ended);
+    return user_data.adapter;
 }
 
 /**
  * Utility function to get a WebGPU texture view from a surface
  */
-WGPUTextureView GetNextSurfaceTextureView(WGPUSurface surface) {
-    WGPUSurfaceTexture surfaceTexture;
-    wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
-    if (surfaceTexture.status != WGPUSurfaceGetCurrentTextureStatus_Success) {
+WGPUTextureView get_next_surface_texture_view(WGPUSurface surface) {
+    WGPUSurfaceTexture surface_texture;
+    wgpuSurfaceGetCurrentTexture(surface, &surface_texture);
+    if (surface_texture.status != WGPUSurfaceGetCurrentTextureStatus_Success) {
         return nullptr;
     }
 
-    WGPUTextureViewDescriptor viewDescriptor;
-    viewDescriptor.nextInChain     = nullptr;
-    viewDescriptor.label           = to_string_view("Surface texture view");
-    viewDescriptor.format          = wgpuTextureGetFormat(surfaceTexture.texture);
-    viewDescriptor.dimension       = WGPUTextureViewDimension_2D;
-    viewDescriptor.baseMipLevel    = 0;
-    viewDescriptor.mipLevelCount   = 1;
-    viewDescriptor.baseArrayLayer  = 0;
-    viewDescriptor.arrayLayerCount = 1;
-    viewDescriptor.aspect          = WGPUTextureAspect_All;
+    WGPUTextureViewDescriptor view_descriptor;
+    view_descriptor.nextInChain     = nullptr;
+    view_descriptor.label           = to_string_view("Surface texture view");
+    view_descriptor.format          = wgpuTextureGetFormat(surface_texture.texture);
+    view_descriptor.dimension       = WGPUTextureViewDimension_2D;
+    view_descriptor.baseMipLevel    = 0;
+    view_descriptor.mipLevelCount   = 1;
+    view_descriptor.baseArrayLayer  = 0;
+    view_descriptor.arrayLayerCount = 1;
+    view_descriptor.aspect          = WGPUTextureAspect_All;
 
-    WGPUTextureView targetView = wgpuTextureCreateView(surfaceTexture.texture, &viewDescriptor);
-    return targetView;
+    WGPUTextureView target_view = wgpuTextureCreateView(surface_texture.texture, &view_descriptor);
+    return target_view;
 }
 
 /**
  * Utility function to get a WebGPU device. It is very similar to requestAdapter
  */
-WGPUDevice requestDeviceSync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor) {
+WGPUDevice request_device_sync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor) {
     struct UserData {
-        WGPUDevice device       = nullptr;
-        bool       requestEnded = false;
+        WGPUDevice device = nullptr;
+        bool request_ended = false;
     };
-    UserData userData;
+    UserData user_data;
 
-    WGPURequestDeviceCallback onDeviceRequestEnded = [](WGPURequestDeviceStatus status, WGPUDevice device,
-                                                        WGPUStringView message, void* pUserData, void*) {
-        UserData& userData = *reinterpret_cast<UserData*>(pUserData);
+    WGPURequestDeviceCallback on_device_request_ended = [](WGPURequestDeviceStatus status, WGPUDevice device,
+                                                        WGPUStringView message, void* p_user_data, void*) {
+        UserData& user_data = *reinterpret_cast<UserData*>(p_user_data);
         if (status == WGPURequestDeviceStatus_Success) {
-            userData.device = device;
+            user_data.device = device;
         } else {
             std::cout << "Could not get WebGPU device: " << to_string(message) << std::endl;
         }
-        userData.requestEnded = true;
+        user_data.request_ended = true;
     };
 
-    WGPURequestDeviceCallbackInfo callbackInfo = {nullptr, WGPUCallbackMode::WGPUCallbackMode_AllowSpontaneous,
-                                                  onDeviceRequestEnded, (void*)&userData, nullptr};
+    WGPURequestDeviceCallbackInfo callback_info = {nullptr, WGPUCallbackMode::WGPUCallbackMode_AllowSpontaneous,
+                                                  on_device_request_ended, (void*)&user_data, nullptr};
 
-    wgpuAdapterRequestDevice(adapter, descriptor, callbackInfo);
+    wgpuAdapterRequestDevice(adapter, descriptor, callback_info);
 
-    while (!userData.requestEnded) {
+    while (!user_data.request_ended) {
 #ifdef __EMSCRIPTEN__
         emscripten_sleep(100);
 #else
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif
-        // Alternatively, do your main loop tasks here.
     }
 
-    assert(userData.requestEnded);
-    assert(userData.device);
+    assert(user_data.request_ended);
+    assert(user_data.device);
 
-    return userData.device;
+    return user_data.device;
 }
 
 void Renderer::terminate_gui() {
@@ -200,7 +146,7 @@ Renderer::~Renderer() {
     terminate_gui();
 
     // release resources
-    wgpuTextureViewRelease(m_depthTextureView);
+    wgpuTextureViewRelease(m_depth_texture_view);
 
     wgpuQueueRelease(m_queue);
     wgpuDeviceRelease(m_device);
@@ -212,46 +158,45 @@ Renderer::~Renderer() {
     glfwTerminate();
 }
 
-WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView nextTexture, WGPUCommandEncoder encoder) {
+WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView next_texture, WGPUCommandEncoder encoder) {
+    WGPURenderPassDescriptor render_pass_desc{};
 
-    WGPURenderPassDescriptor renderPassDesc{};
+    WGPURenderPassColorAttachment render_pass_color_attachment{};
+    render_pass_color_attachment.view          = next_texture;
+    render_pass_color_attachment.resolveTarget = nullptr;
+    render_pass_color_attachment.loadOp        = WGPULoadOp_Clear;
+    render_pass_color_attachment.storeOp       = WGPUStoreOp_Store;
+    render_pass_color_attachment.clearValue    = WGPUColor{0.4, 0.4, 1, 1};
+    render_pass_color_attachment.depthSlice    = WGPU_DEPTH_SLICE_UNDEFINED;
+    render_pass_color_attachment.nextInChain   = nullptr;
+    render_pass_desc.colorAttachmentCount     = 1;
+    render_pass_desc.colorAttachments         = &render_pass_color_attachment;
+    render_pass_desc.nextInChain              = nullptr;
 
-    WGPURenderPassColorAttachment renderPassColorAttachment{};
-    renderPassColorAttachment.view          = nextTexture;
-    renderPassColorAttachment.resolveTarget = nullptr;
-    renderPassColorAttachment.loadOp        = WGPULoadOp_Clear;
-    renderPassColorAttachment.storeOp       = WGPUStoreOp_Store;
-    renderPassColorAttachment.clearValue    = WGPUColor{0.4, 0.4, 1, 1};
-    renderPassColorAttachment.depthSlice    = WGPU_DEPTH_SLICE_UNDEFINED;
-    renderPassColorAttachment.nextInChain   = nullptr;
-    renderPassDesc.colorAttachmentCount     = 1;
-    renderPassDesc.colorAttachments         = &renderPassColorAttachment;
-    renderPassDesc.nextInChain              = nullptr;
-
-    WGPURenderPassDepthStencilAttachment depthStencilAttachment = {};
-    depthStencilAttachment.view                                 = m_depthTextureView;
-    depthStencilAttachment.depthClearValue                      = 1.0f;
-    depthStencilAttachment.depthLoadOp                          = WGPULoadOp_Clear;
-    depthStencilAttachment.depthStoreOp                         = WGPUStoreOp_Store;
-    depthStencilAttachment.depthReadOnly                        = false;
-    depthStencilAttachment.stencilClearValue                    = 0;
+    WGPURenderPassDepthStencilAttachment depth_stencil_attachment = {};
+    depth_stencil_attachment.view                                 = m_depth_texture_view;
+    depth_stencil_attachment.depthClearValue                      = 1.0f;
+    depth_stencil_attachment.depthLoadOp                          = WGPULoadOp_Clear;
+    depth_stencil_attachment.depthStoreOp                         = WGPUStoreOp_Store;
+    depth_stencil_attachment.depthReadOnly                        = false;
+    depth_stencil_attachment.stencilClearValue                    = 0;
 #ifdef WEBGPU_BACKEND_WGPU
-    depthStencilAttachment.stencilLoadOp  = LoadOp::Clear;
-    depthStencilAttachment.stencilStoreOp = StoreOp::Store;
+    depth_stencil_attachment.stencilLoadOp  = LoadOp::Clear;
+    depth_stencil_attachment.stencilStoreOp = StoreOp::Store;
 #else
-    depthStencilAttachment.stencilLoadOp  = WGPULoadOp_Undefined;
-    depthStencilAttachment.stencilStoreOp = WGPUStoreOp_Undefined;
+    depth_stencil_attachment.stencilLoadOp  = WGPULoadOp_Undefined;
+    depth_stencil_attachment.stencilStoreOp = WGPUStoreOp_Undefined;
 #endif
-    depthStencilAttachment.stencilReadOnly = true;
+    depth_stencil_attachment.stencilReadOnly = true;
 
-    renderPassDesc.depthStencilAttachment = &depthStencilAttachment;
+    render_pass_desc.depthStencilAttachment = &depth_stencil_attachment;
 
-    // renderPassDesc.timestampWriteCount = 0;
-    renderPassDesc.timestampWrites = nullptr;
-    return wgpuCommandEncoderBeginRenderPass(encoder, &renderPassDesc);
+    // render_pass_desc.timestampWriteCount = 0;
+    render_pass_desc.timestampWrites = nullptr;
+    return wgpuCommandEncoderBeginRenderPass(encoder, &render_pass_desc);
 }
 
-void Renderer::update_gui(WGPURenderPassEncoder renderPass) {
+void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
     // Start the Dear ImGui frame
     ImGui_ImplWGPU_NewFrame();
     ImGui_ImplGlfw_NewFrame();
@@ -317,30 +262,35 @@ void Renderer::update_gui(WGPURenderPassEncoder renderPass) {
     // Convert the UI defined above into low-level drawing commands
     ImGui::Render();
     // Execute the low-level drawing commands on the WebGPU backend
-    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), renderPass);
+    ImGui_ImplWGPU_RenderDrawData(ImGui::GetDrawData(), render_pass);
 }
 
 void Renderer::update_frame() {
     glfwPollEvents();
 
+    // get framebuffersize from glfw
+    int width, height;
+    glfwGetFramebufferSize(m_window, &width, &height);
+    //printf("Framebuffer size: %d %d, width: %d, height: %d\n", width, height, m_width, m_height);
+
     if (m_user_callback) {
         m_user_callback();
     }
-    WGPUSurfaceTexture surfaceTexture;
-    wgpuSurfaceGetCurrentTexture(m_surface, &surfaceTexture);
-    WGPUTextureViewDescriptor viewDesc = {};
-    viewDesc.nextInChain               = nullptr;
-    viewDesc.label                     = to_string_view("Surface texture view");
-    viewDesc.format                    = wgpuTextureGetFormat(surfaceTexture.texture);
-    viewDesc.dimension                 = WGPUTextureViewDimension_2D;
-    viewDesc.baseMipLevel              = 0;
-    viewDesc.mipLevelCount             = 1;
-    viewDesc.baseArrayLayer            = 0;
-    viewDesc.arrayLayerCount           = 1;
-    viewDesc.aspect                    = WGPUTextureAspect_All;
+    WGPUSurfaceTexture surface_texture;
+    wgpuSurfaceGetCurrentTexture(m_surface, &surface_texture);
+    WGPUTextureViewDescriptor view_desc = {};
+    view_desc.nextInChain               = nullptr;
+    view_desc.label                     = to_string_view("Surface texture view");
+    view_desc.format                    = wgpuTextureGetFormat(surface_texture.texture);
+    view_desc.dimension                 = WGPUTextureViewDimension_2D;
+    view_desc.baseMipLevel              = 0;
+    view_desc.mipLevelCount             = 1;
+    view_desc.baseArrayLayer            = 0;
+    view_desc.arrayLayerCount           = 1;
+    view_desc.aspect                    = WGPUTextureAspect_All;
 
-    WGPUTextureView nextTexture = wgpuTextureCreateView(surfaceTexture.texture, &viewDesc);
-    if (!nextTexture) {
+    WGPUTextureView next_texture = wgpuTextureCreateView(surface_texture.texture, &view_desc);
+    if (!next_texture) {
         std::cerr << "Cannot acquire next swap chain texture" << std::endl;
         exit(1);
     }
@@ -348,19 +298,19 @@ void Renderer::update_frame() {
     commandEncoderDesc.label                        = to_string_view("Command Encoder");
     WGPUCommandEncoder encoder                      = wgpuDeviceCreateCommandEncoder(m_device, &commandEncoderDesc);
 
-    WGPURenderPassEncoder renderPass = create_render_pass(nextTexture, encoder);
+    WGPURenderPassEncoder render_pass = create_render_pass(next_texture, encoder);
 
     for (auto& drawable : m_drawables) {
-        drawable.second->draw(renderPass);
+        drawable.second->draw(render_pass);
     }
 
     // We add the GUI drawing commands to the render pass
-    update_gui(renderPass);
+    update_gui(render_pass);
 
-    wgpuRenderPassEncoderEnd(renderPass);
-    wgpuRenderPassEncoderRelease(renderPass);
+    wgpuRenderPassEncoderEnd(render_pass);
+    wgpuRenderPassEncoderRelease(render_pass);
 
-    wgpuTextureViewRelease(nextTexture);
+    wgpuTextureViewRelease(next_texture);
 
     WGPUCommandBufferDescriptor cmdBufferDescriptor{};
     cmdBufferDescriptor.label = to_string_view("Command buffer");
@@ -370,7 +320,7 @@ void Renderer::update_frame() {
     wgpuCommandBufferRelease(command);
 
     wgpuSurfacePresent(m_surface);
-    wgpuTextureRelease(surfaceTexture.texture);
+    wgpuTextureRelease(surface_texture.texture);
 
 #ifdef WEBGPU_BACKEND_DAWN
     // Check for pending error callbacks
@@ -412,28 +362,28 @@ void Renderer::set_user_callback(std::function<void()> callback) {
 }
 
 void Renderer::initialize_depth_texture() { // Create the depth texture
-    m_depthTextureFormat                   = WGPUTextureFormat_Depth24Plus;
-    WGPUTextureDescriptor depthTextureDesc = {};
-    depthTextureDesc.dimension             = WGPUTextureDimension_2D;
-    depthTextureDesc.format                = m_depthTextureFormat;
-    depthTextureDesc.mipLevelCount         = 1;
-    depthTextureDesc.sampleCount           = 1;
-    depthTextureDesc.size                  = {m_width, m_height, 1};
-    depthTextureDesc.usage                 = WGPUTextureUsage_RenderAttachment;
-    depthTextureDesc.viewFormatCount       = 1;
-    depthTextureDesc.viewFormats           = (WGPUTextureFormat*)&m_depthTextureFormat;
-    WGPUTexture depthTexture               = wgpuDeviceCreateTexture(m_device, &depthTextureDesc);
+    m_depth_texture_format                   = WGPUTextureFormat_Depth24Plus;
+    WGPUTextureDescriptor depth_texture_desc = {};
+    depth_texture_desc.dimension             = WGPUTextureDimension_2D;
+    depth_texture_desc.format                = m_depth_texture_format;
+    depth_texture_desc.mipLevelCount         = 1;
+    depth_texture_desc.sampleCount           = 1;
+    depth_texture_desc.size                  = {m_width, m_height, 1};
+    depth_texture_desc.usage                 = WGPUTextureUsage_RenderAttachment;
+    depth_texture_desc.viewFormatCount       = 1;
+    depth_texture_desc.viewFormats           = (WGPUTextureFormat*)&m_depth_texture_format;
+    WGPUTexture depth_texture               = wgpuDeviceCreateTexture(m_device, &depth_texture_desc);
 
     // Create the view of the depth texture manipulated by the rasterizer
-    WGPUTextureViewDescriptor depthTextureViewDesc = {};
-    depthTextureViewDesc.aspect                    = WGPUTextureAspect_DepthOnly;
-    depthTextureViewDesc.baseArrayLayer            = 0;
-    depthTextureViewDesc.arrayLayerCount           = 1;
-    depthTextureViewDesc.baseMipLevel              = 0;
-    depthTextureViewDesc.mipLevelCount             = 1;
-    depthTextureViewDesc.dimension                 = WGPUTextureViewDimension_2D;
-    depthTextureViewDesc.format                    = m_depthTextureFormat;
-    m_depthTextureView                             = wgpuTextureCreateView(depthTexture, &depthTextureViewDesc);
+    WGPUTextureViewDescriptor depth_texture_view_desc = {};
+    depth_texture_view_desc.aspect                    = WGPUTextureAspect_DepthOnly;
+    depth_texture_view_desc.baseArrayLayer            = 0;
+    depth_texture_view_desc.arrayLayerCount           = 1;
+    depth_texture_view_desc.baseMipLevel              = 0;
+    depth_texture_view_desc.mipLevelCount             = 1;
+    depth_texture_view_desc.dimension                 = WGPUTextureViewDimension_2D;
+    depth_texture_view_desc.format                    = m_depth_texture_format;
+    m_depth_texture_view                             = wgpuTextureCreateView(depth_texture, &depth_texture_view_desc);
 }
 
 void Renderer::initialize_window() {
@@ -462,17 +412,17 @@ void Renderer::initialize_window() {
     glfwSetCursorPosCallback(m_window, [](GLFWwindow* window, double xpos, double ypos) {
         auto that = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
         if (that != nullptr)
-            that->onMouseMove(xpos, ypos);
+            that->on_mouse_move(xpos, ypos);
     });
     glfwSetMouseButtonCallback(m_window, [](GLFWwindow* window, int button, int action, int mods) {
         auto that = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
         if (that != nullptr)
-            that->onMouseButton(button, action, mods);
+            that->on_mouse_button(button, action, mods);
     });
     glfwSetScrollCallback(m_window, [](GLFWwindow* window, double xoffset, double yoffset) {
         auto that = reinterpret_cast<Renderer*>(glfwGetWindowUserPointer(window));
         if (that != nullptr)
-            that->onScroll(xoffset, yoffset);
+            that->on_scroll(xoffset, yoffset);
     });
 }
 
@@ -495,7 +445,7 @@ void Renderer::initialize_device() {
     WGPURequestAdapterOptions adapterOpts = {};
     adapterOpts.nextInChain               = nullptr;
     adapterOpts.compatibleSurface         = m_surface;
-    WGPUAdapter adapter                   = requestAdapterSync(m_instance, &adapterOpts);
+    WGPUAdapter adapter                   = request_adapter_sync(m_instance, &adapterOpts);
 
     WGPUDeviceDescriptor deviceDesc     = {};
     deviceDesc.nextInChain              = nullptr;
@@ -506,24 +456,24 @@ void Renderer::initialize_device() {
     deviceDesc.defaultQueue.label       = to_string_view("The default queue");
     // deviceDesc.deviceLostCallback       = nullptr;
 
-    m_device = requestDeviceSync(adapter, &deviceDesc);
+    m_device = request_device_sync(adapter, &deviceDesc);
 
-    auto onDeviceError = [](WGPUErrorType type, WGPUStringView message, void* /* pUserData */, void*) {
-        std::cout << "Uncaptured device error: type " << type;
-        if (message.length > 0)
-            std::cout << " (" << to_string(message) << ")";
-        std::cout << std::endl;
-    };
+    //auto on_device_error = [](WGPUErrorType type, WGPUStringView message, void* /* pUserData */, void*) {
+    //    std::cout << "Uncaptured device error: type " << type;
+    //    if (message.length > 0)
+    //        std::cout << " (" << to_string(message) << ")";
+    //    std::cout << std::endl;
+    //};
 
     // wgpuDeviceSetUncapturedErrorCallback(m_device, onDeviceError, nullptr /* pUserData */);
     wgpuAdapterRelease(adapter);
 }
 
 void Renderer::configure_surface() {
-    m_swapChainFormat               = WGPUTextureFormat_BGRA8Unorm;
+    m_swap_chain_format               = WGPUTextureFormat_BGRA8Unorm;
     WGPUSurfaceConfiguration config = {};
     config.device                   = m_device;
-    config.format                   = m_swapChainFormat;
+    config.format                   = m_swap_chain_format;
     config.usage                    = WGPUTextureUsage_RenderAttachment;
     config.width                    = m_width;
     config.height                   = m_height;
@@ -550,8 +500,8 @@ void Renderer::initialize_gui() {
     ImGui_ImplGlfw_InitForOther(m_window, true);
     ImGui_ImplWGPU_InitInfo init_info = {};
     init_info.Device                  = m_device;
-    init_info.RenderTargetFormat      = m_swapChainFormat;
-    init_info.DepthStencilFormat      = m_depthTextureFormat;
+    init_info.RenderTargetFormat      = m_swap_chain_format;
+    init_info.DepthStencilFormat      = m_depth_texture_format;
     ImGui_ImplWGPU_Init(&init_info);
 }
 
@@ -559,6 +509,14 @@ Renderer::Renderer() : m_camera({0, 0, 5}, {0, 0, 0}, {0, 1, 0}) {
     initialize_window();
     initialize_device();
     initialize_queue();
+
+    // m_width and m_height are used to create the window, but that is not necessarily the same as the framebuffer size.
+    // so we update them before configuring the surface in case they are not the same.
+    int fb_width, fb_height;
+    glfwGetFramebufferSize(m_window, &fb_width, &fb_height);
+    m_width  = fb_width;
+    m_height = fb_height;
+
     configure_surface();
     initialize_depth_texture();
     initialize_gui();
@@ -574,8 +532,7 @@ glm::vec2 transform_mouse(glm::vec2 in, uint32_t width, uint32_t height) {
     return {in.x * 2.f / float(width) - 1.f, 1.f - 2.f * in.y / float(height)};
 }
 
-void Renderer::onMouseMove(double xpos, double ypos) {
-    // If imgui wants the mouse, we don't want to interfere
+void Renderer::on_mouse_move(double xpos, double ypos) {
     if (ImGui::GetIO().WantCaptureMouse) {
         return;
     }
@@ -586,18 +543,16 @@ void Renderer::onMouseMove(double xpos, double ypos) {
         if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS) {
             m_camera.rotate(last_pos, current_pos);
         } else if (glfwGetMouseButton(m_window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
-            glm::vec2 delta = (current_pos - last_pos) * m_drag.panSpeed;
+            glm::vec2 delta = (current_pos - last_pos) * m_drag.pan_speed;
             m_camera.pan(delta);
         }
 
         m_drag.last_pos = current_pos;
-
         on_camera_update();
     }
 }
 
-void Renderer::onMouseButton(int button, int action, int /* modifiers */) {
-    // If imgui wants the mouse, we don't want to interfere
+void Renderer::on_mouse_button(int button, int action, int /* modifiers */) {
     if (ImGui::GetIO().WantCaptureMouse) {
         return;
     }
@@ -616,12 +571,11 @@ void Renderer::onMouseButton(int button, int action, int /* modifiers */) {
     }
 }
 
-void Renderer::onScroll(double /* xoffset */, double yoffset) {
-    // If imgui wants the mouse, we don't want to interfere
+void Renderer::on_scroll(double /* xoffset */, double yoffset) {
     if (ImGui::GetIO().WantCaptureMouse) {
         return;
     }
-    m_camera.zoom(static_cast<float>(yoffset) * m_drag.scrollSensitivity);
+    m_camera.zoom(static_cast<float>(yoffset) * m_drag.scroll_sensitivity);
     on_camera_update();
 }
 
@@ -629,15 +583,12 @@ void Renderer::resize(int width, int height) {
     m_width  = width;
     m_height = height;
 
-    // Reconfigure the swap chain with the new dimensions.
     configure_surface();
 
-    // Release the old depth texture view.
-    if (m_depthTextureView) {
-        wgpuTextureViewRelease(m_depthTextureView);
+    if (m_depth_texture_view) {
+        wgpuTextureViewRelease(m_depth_texture_view);
     }
 
-    // Recreate the depth texture for the new size.
     initialize_depth_texture();
 
     on_camera_update();

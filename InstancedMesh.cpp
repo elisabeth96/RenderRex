@@ -4,8 +4,6 @@
 #include "Mesh.h"
 #include "Renderer.h"
 
-#include <iostream>
-
 namespace rr {
 
 struct InstancedMeshVertexAttributes {
@@ -55,16 +53,16 @@ InstancedMesh::InstancedMesh(const Mesh& mesh, size_t num_instances, const Rende
 }
 
 void InstancedMesh::release() {
-    if (m_vertexBuffer == nullptr) {
+    if (m_vertex_buffer == nullptr) {
         return;
     }
-    wgpuBufferDestroy(m_vertexBuffer);
-    wgpuBufferRelease(m_vertexBuffer);
-    wgpuBufferDestroy(m_instanceBuffer);
-    wgpuBufferRelease(m_instanceBuffer);
-    wgpuBufferDestroy(m_uniformBuffer);
-    wgpuBufferRelease(m_uniformBuffer);
-    wgpuBindGroupRelease(m_bindGroup);
+    wgpuBufferDestroy(m_vertex_buffer);
+    wgpuBufferRelease(m_vertex_buffer);
+    wgpuBufferDestroy(m_instance_buffer);
+    wgpuBufferRelease(m_instance_buffer);
+    wgpuBufferDestroy(m_uniform_buffer);
+    wgpuBufferRelease(m_uniform_buffer);
+    wgpuBindGroupRelease(m_bind_group);
     wgpuRenderPipelineRelease(m_pipeline);
 }
 
@@ -192,107 +190,104 @@ void InstancedMesh::configure_render_pipeline() {
     const Renderer& renderer = *m_renderer;
 
     std::vector<InstancedMeshVertexAttributes> vertex_attributes = create_vertex_attributes(m_mesh);
-    m_num_attr_verts                                             = vertex_attributes.size();
+    m_num_attr_verts = vertex_attributes.size();
 
     // Create vertex buffer
-    WGPUBufferDescriptor vbDesc = {};
-    vbDesc.size                 = vertex_attributes.size() * sizeof(InstancedMeshVertexAttributes);
-    vbDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
-    vbDesc.mappedAtCreation     = false;
-    m_vertexBuffer              = wgpuDeviceCreateBuffer(renderer.m_device, &vbDesc);
-    wgpuQueueWriteBuffer(renderer.m_queue, m_vertexBuffer, 0, vertex_attributes.data(), vbDesc.size);
+    WGPUBufferDescriptor vb_desc = {};
+    vb_desc.size = vertex_attributes.size() * sizeof(InstancedMeshVertexAttributes);
+    vb_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
+    vb_desc.mappedAtCreation = false;
+    m_vertex_buffer = wgpuDeviceCreateBuffer(renderer.m_device, &vb_desc);
+    wgpuQueueWriteBuffer(renderer.m_queue, m_vertex_buffer, 0, vertex_attributes.data(), vb_desc.size);
 
     // Create instance buffer
-    WGPUBufferDescriptor ibDesc = {};
-    ibDesc.size                 = m_instance_data.size() * sizeof(InstanceData);
-    ibDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
-    ibDesc.mappedAtCreation     = false;
-    m_instanceBuffer            = wgpuDeviceCreateBuffer(renderer.m_device, &ibDesc);
+    WGPUBufferDescriptor ib_desc = {};
+    ib_desc.size = m_instance_data.size() * sizeof(InstanceData);
+    ib_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Vertex;
+    ib_desc.mappedAtCreation = false;
+    m_instance_buffer = wgpuDeviceCreateBuffer(renderer.m_device, &ib_desc);
 
     // Create uniform buffer
-    WGPUBufferDescriptor ubDesc = {};
-    ubDesc.size                 = sizeof(InstancedMeshUniforms);
-    ubDesc.usage                = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
-    ubDesc.mappedAtCreation     = false;
-    m_uniformBuffer             = wgpuDeviceCreateBuffer(renderer.m_device, &ubDesc);
+    WGPUBufferDescriptor ub_desc = {};
+    ub_desc.size = sizeof(InstancedMeshUniforms);
+    ub_desc.usage = WGPUBufferUsage_CopyDst | WGPUBufferUsage_Uniform;
+    ub_desc.mappedAtCreation = false;
+    m_uniform_buffer = wgpuDeviceCreateBuffer(renderer.m_device, &ub_desc);
 
     // Create shader module
-    WGPUShaderModuleDescriptor     shaderDesc     = {};
-    WGPUShaderModuleWGSLDescriptor shaderCodeDesc = {};
-    shaderCodeDesc.chain.next                     = nullptr;
-    shaderCodeDesc.chain.sType                    = WGPUSType_ShaderSourceWGSL;
-    shaderDesc.nextInChain                        = &shaderCodeDesc.chain;
-    shaderCodeDesc.code                           = to_string_view(shaderCode);
-    WGPUShaderModule shaderModule                 = wgpuDeviceCreateShaderModule(renderer.m_device, &shaderDesc);
+    WGPUShaderModuleDescriptor shader_desc = {};
+    WGPUShaderModuleWGSLDescriptor shader_code_desc = {};
+    shader_code_desc.chain.next = nullptr;
+    shader_code_desc.chain.sType = WGPUSType_ShaderSourceWGSL;
+    shader_desc.nextInChain = &shader_code_desc.chain;
+    shader_code_desc.code = to_string_view(shaderCode);
+    WGPUShaderModule shader_module = wgpuDeviceCreateShaderModule(renderer.m_device, &shader_desc);
 
     // Vertex attributes
-    std::vector<WGPUVertexAttribute> vertexAttribs;
-
-    static_assert(offsetof(InstancedMeshVertexAttributes, position) == 0, "Position offset is not zero.");
-    static_assert(offsetof(InstancedMeshVertexAttributes, normal) == 12, "Normal offset is not as expected.");
+    std::vector<WGPUVertexAttribute> vertex_attribs;
 
     // Per-vertex attributes
-    WGPUVertexAttribute positionAttrib;
-    positionAttrib.shaderLocation = 0;
-    positionAttrib.format         = WGPUVertexFormat_Float32x3;
-    positionAttrib.offset         = offsetof(InstancedMeshVertexAttributes, position);
-    vertexAttribs.push_back(positionAttrib);
+    WGPUVertexAttribute position_attrib;
+    position_attrib.shaderLocation = 0;
+    position_attrib.format = WGPUVertexFormat_Float32x3;
+    position_attrib.offset = offsetof(InstancedMeshVertexAttributes, position);
+    vertex_attribs.push_back(position_attrib);
 
-    WGPUVertexAttribute normalAttrib;
-    normalAttrib.shaderLocation = 1;
-    normalAttrib.format         = WGPUVertexFormat_Float32x3;
-    normalAttrib.offset         = offsetof(InstancedMeshVertexAttributes, normal);
-    vertexAttribs.push_back(normalAttrib);
+    WGPUVertexAttribute normal_attrib;
+    normal_attrib.shaderLocation = 1;
+    normal_attrib.format = WGPUVertexFormat_Float32x3;
+    normal_attrib.offset = offsetof(InstancedMeshVertexAttributes, normal);
+    vertex_attribs.push_back(normal_attrib);
 
     // Per-instance attributes (transform matrix rows and color)
     for (uint32_t i = 0; i < 4; i++) {
-        WGPUVertexAttribute matrixRowAttrib;
-        matrixRowAttrib.shaderLocation = 2 + i;
-        matrixRowAttrib.format         = WGPUVertexFormat_Float32x4;
-        matrixRowAttrib.offset         = sizeof(float) * 4 * i;
-        vertexAttribs.push_back(matrixRowAttrib);
+        WGPUVertexAttribute matrix_row_attrib;
+        matrix_row_attrib.shaderLocation = 2 + i;
+        matrix_row_attrib.format = WGPUVertexFormat_Float32x4;
+        matrix_row_attrib.offset = sizeof(float) * 4 * i;
+        vertex_attribs.push_back(matrix_row_attrib);
     }
 
-    WGPUVertexAttribute colorAttrib;
-    colorAttrib.shaderLocation = 6;
-    colorAttrib.format         = WGPUVertexFormat_Float32x4;
-    colorAttrib.offset         = sizeof(glm::mat4);
-    vertexAttribs.push_back(colorAttrib);
+    WGPUVertexAttribute color_attrib;
+    color_attrib.shaderLocation = 6;
+    color_attrib.format = WGPUVertexFormat_Float32x4;
+    color_attrib.offset = sizeof(glm::mat4);
+    vertex_attribs.push_back(color_attrib);
 
     // Vertex buffer layout
-    WGPUVertexBufferLayout vertexBufferLayout = {};
-    vertexBufferLayout.attributeCount         = 2; // position and normal
-    vertexBufferLayout.attributes             = vertexAttribs.data();
-    vertexBufferLayout.arrayStride            = sizeof(InstancedMeshVertexAttributes);
-    vertexBufferLayout.stepMode               = WGPUVertexStepMode_Vertex;
+    WGPUVertexBufferLayout vertex_buffer_layout = {};
+    vertex_buffer_layout.attributeCount = 2; // position and normal
+    vertex_buffer_layout.attributes = vertex_attribs.data();
+    vertex_buffer_layout.arrayStride = sizeof(InstancedMeshVertexAttributes);
+    vertex_buffer_layout.stepMode = WGPUVertexStepMode_Vertex;
 
     // Instance buffer layout
-    WGPUVertexBufferLayout instanceBufferLayout = {};
-    instanceBufferLayout.attributeCount         = 5;                        // 4 for transform matrix rows + 1 for color
-    instanceBufferLayout.attributes             = vertexAttribs.data() + 2; // Skip vertex attributes
-    instanceBufferLayout.arrayStride            = sizeof(InstanceData);
-    instanceBufferLayout.stepMode               = WGPUVertexStepMode_Instance;
+    WGPUVertexBufferLayout instance_buffer_layout = {};
+    instance_buffer_layout.attributeCount = 5; // 4 for transform matrix rows + 1 for color
+    instance_buffer_layout.attributes = vertex_attribs.data() + 2; // Skip vertex attributes
+    instance_buffer_layout.arrayStride = sizeof(InstanceData);
+    instance_buffer_layout.stepMode = WGPUVertexStepMode_Instance;
 
-    std::vector<WGPUVertexBufferLayout> bufferLayouts = {vertexBufferLayout, instanceBufferLayout};
+    std::vector<WGPUVertexBufferLayout> buffer_layouts = {vertex_buffer_layout, instance_buffer_layout};
 
     // Pipeline descriptor
-    WGPURenderPipelineDescriptor pipelineDesc = {};
-    pipelineDesc.vertex.bufferCount           = bufferLayouts.size();
-    pipelineDesc.vertex.buffers               = bufferLayouts.data();
-    pipelineDesc.vertex.module                = shaderModule;
-    pipelineDesc.vertex.entryPoint            = to_string_view("vs_main");
-    pipelineDesc.vertex.constantCount         = 0;
-    pipelineDesc.vertex.constants             = nullptr;
+    WGPURenderPipelineDescriptor pipeline_desc = {};
+    pipeline_desc.vertex.bufferCount = buffer_layouts.size();
+    pipeline_desc.vertex.buffers = buffer_layouts.data();
+    pipeline_desc.vertex.module = shader_module;
+    pipeline_desc.vertex.entryPoint = to_string_view("vs_main");
+    pipeline_desc.vertex.constantCount = 0;
+    pipeline_desc.vertex.constants = nullptr;
 
-    pipelineDesc.primitive.topology         = WGPUPrimitiveTopology_TriangleList;
-    pipelineDesc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
-    pipelineDesc.primitive.frontFace        = WGPUFrontFace_CCW;
+    pipeline_desc.primitive.topology         = WGPUPrimitiveTopology_TriangleList;
+    pipeline_desc.primitive.stripIndexFormat = WGPUIndexFormat_Undefined;
+    pipeline_desc.primitive.frontFace        = WGPUFrontFace_CCW;
     // pipelineDesc.primitive.cullMode         = WGPUCullMode_Back;
-    pipelineDesc.primitive.cullMode = WGPUCullMode_None;
+    pipeline_desc.primitive.cullMode = WGPUCullMode_None;
 
     WGPUFragmentState fragmentState = {};
-    pipelineDesc.fragment           = &fragmentState;
-    fragmentState.module            = shaderModule;
+    pipeline_desc.fragment           = &fragmentState;
+    fragmentState.module            = shader_module;
     fragmentState.entryPoint        = to_string_view("fs_main");
     fragmentState.constantCount     = 0;
     fragmentState.constants         = nullptr;
@@ -306,7 +301,7 @@ void InstancedMesh::configure_render_pipeline() {
     blendState.alpha.operation = WGPUBlendOperation_Add;
 
     WGPUColorTargetState colorTarget = {};
-    colorTarget.format               = renderer.m_swapChainFormat;
+    colorTarget.format               = renderer.m_swap_chain_format;
     colorTarget.blend                = &blendState;
     colorTarget.writeMask            = WGPUColorWriteMask_All;
 
@@ -316,15 +311,15 @@ void InstancedMesh::configure_render_pipeline() {
     WGPUDepthStencilState depthStencilState = {};
     depthStencilState.depthCompare          = WGPUCompareFunction_Less;
     depthStencilState.depthWriteEnabled     = WGPUOptionalBool_True;
-    depthStencilState.format                = renderer.m_depthTextureFormat;
+    depthStencilState.format                = renderer.m_depth_texture_format;
     depthStencilState.stencilReadMask       = 0;
     depthStencilState.stencilWriteMask      = 0;
 
-    pipelineDesc.depthStencil = &depthStencilState;
+    pipeline_desc.depthStencil = &depthStencilState;
 
-    pipelineDesc.multisample.count                  = 1;
-    pipelineDesc.multisample.mask                   = ~0u;
-    pipelineDesc.multisample.alphaToCoverageEnabled = false;
+    pipeline_desc.multisample.count                  = 1;
+    pipeline_desc.multisample.mask                   = ~0u;
+    pipeline_desc.multisample.alphaToCoverageEnabled = false;
 
     // Create binding layout
     WGPUBindGroupLayoutEntry bindingLayout = {};
@@ -343,12 +338,12 @@ void InstancedMesh::configure_render_pipeline() {
     layoutDesc.bindGroupLayoutCount         = 1;
     layoutDesc.bindGroupLayouts             = &bindGroupLayout;
     WGPUPipelineLayout layout               = wgpuDeviceCreatePipelineLayout(renderer.m_device, &layoutDesc);
-    pipelineDesc.layout                     = layout;
+    pipeline_desc.layout                     = layout;
 
     // Create bind group
     WGPUBindGroupEntry binding = {};
     binding.binding            = 0;
-    binding.buffer             = m_uniformBuffer;
+    binding.buffer             = m_uniform_buffer;
     binding.offset             = 0;
     binding.size               = sizeof(InstancedMeshUniforms);
 
@@ -356,16 +351,16 @@ void InstancedMesh::configure_render_pipeline() {
     bindGroupDesc.layout                  = bindGroupLayout;
     bindGroupDesc.entryCount              = 1;
     bindGroupDesc.entries                 = &binding;
-    m_bindGroup                           = wgpuDeviceCreateBindGroup(renderer.m_device, &bindGroupDesc);
+    m_bind_group                           = wgpuDeviceCreateBindGroup(renderer.m_device, &bindGroupDesc);
 
-    m_pipeline = wgpuDeviceCreateRenderPipeline(renderer.m_device, &pipelineDesc);
-    wgpuShaderModuleRelease(shaderModule);
+    m_pipeline = wgpuDeviceCreateRenderPipeline(renderer.m_device, &pipeline_desc);
+    wgpuShaderModuleRelease(shader_module);
 
     on_camera_update();
 }
 
 void InstancedMesh::upload_instance_data() {
-    wgpuQueueWriteBuffer(m_renderer->m_queue, m_instanceBuffer, 0, m_instance_data.data(),
+    wgpuQueueWriteBuffer(m_renderer->m_queue, m_instance_buffer, 0, m_instance_data.data(),
                          m_instance_data.size() * sizeof(InstanceData));
 }
 
@@ -373,15 +368,15 @@ void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
     wgpuRenderPassEncoderSetPipeline(render_pass, m_pipeline);
 
     // Bind vertex buffer to slot 0
-    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertexBuffer, 0,
+    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 0, m_vertex_buffer, 0,
                                          m_num_attr_verts * sizeof(InstancedMeshVertexAttributes));
 
     // Bind instance buffer to slot 1
-    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 1, m_instanceBuffer, 0,
+    wgpuRenderPassEncoderSetVertexBuffer(render_pass, 1, m_instance_buffer, 0,
                                          m_instance_data.size() * sizeof(InstanceData));
 
     // Set binding group for uniforms
-    wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bindGroup, 0, nullptr);
+    wgpuRenderPassEncoderSetBindGroup(render_pass, 0, m_bind_group, 0, nullptr);
 
     // Draw call with instancing
     // Parameters:
@@ -393,15 +388,15 @@ void InstancedMesh::draw(WGPURenderPassEncoder render_pass) {
 }
 
 void InstancedMesh::on_camera_update() {
-    m_uniforms.viewMatrix = m_renderer->m_camera.transform();
+    m_uniforms.view_matrix = m_renderer->m_camera.transform();
 
     float aspect_ratio          = static_cast<float>(m_renderer->m_width) / static_cast<float>(m_renderer->m_height);
     float far_plane             = 100.0f;
     float near_plane            = 0.01f;
     float fov                   = glm::radians(45.0f);
-    m_uniforms.projectionMatrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
+    m_uniforms.projection_matrix = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
 
-    wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniformBuffer, 0, &m_uniforms, sizeof(InstancedMeshUniforms));
+    wgpuQueueWriteBuffer(m_renderer->m_queue, m_uniform_buffer, 0, &m_uniforms, sizeof(InstancedMeshUniforms));
 }
 
 } // namespace rr

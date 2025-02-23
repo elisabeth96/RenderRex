@@ -147,7 +147,7 @@ void save_obj(std::string_view path, const Mesh& mesh) {
     }
 }
 
-glm::vec3 hsvToRgb(float hue, float saturation, float value) {
+glm::vec3 hsv_to_rgb(float hue, float saturation, float value) {
     float     c = value * saturation;
     float     x = c * (1.f - std::abs(std::fmod(hue / 60.0f, 2.f) - 1.f));
     float     m = value - c;
@@ -172,7 +172,7 @@ glm::vec3 hsvToRgb(float hue, float saturation, float value) {
 glm::vec3 get_random_color() {
     static float hue = 42.0f;
     hue              = std::fmod(hue + 137.5f, 360.0f);
-    return hsvToRgb(hue, 0.75f, 0.9f);
+    return hsv_to_rgb(hue, 0.75f, 0.9f);
 }
 
 } // namespace rr
