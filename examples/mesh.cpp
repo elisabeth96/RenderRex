@@ -8,7 +8,9 @@ int main() {
     auto sphere = rr::create_sphere(10, 10).scale(0.1f);
 
     rr::VisualMesh* vm = rr::make_visual("mammoth", mesh);
+
     rr::VisualMesh* vs = rr::make_visual("sphere", sphere);
+    vs->set_hide_mesh(true);
 
     rr::show();
 

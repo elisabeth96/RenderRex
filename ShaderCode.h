@@ -24,7 +24,7 @@ struct MyUniforms {
     viewMatrix: mat4x4f,
     modelMatrix: mat4x4f,
     wireframeColor: vec4f,
-    showWireframe : vec4i,
+    options : vec4f,
 };
 
 @group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
@@ -116,9 +116,19 @@ fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location
     let ambient = vec3f(0.15) * meshColor;
     result += ambient;
 
+    // Tone mapping and gamma correction
+    result = aces_tone_mapping(result);
+    result = pow(result, vec3f(1.0/2.2));
+
+    // as vec4
 	var final_color = result;
 
-    if (uMyUniforms.showWireframe.x == 1) {
+    //let show_mesh = uMyUniforms.options.z;
+    //if (show_mesh == 0.0) {
+    //    final_color = wireframe_color;
+    //}
+
+    if (uMyUniforms.options.x == 1.0) {
 		// Wire frame calculation (preserved from original)
         let d = fwidth(in.bary);
         let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
@@ -130,9 +140,9 @@ fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location
 	}
 
     // Tone mapping and gamma correction
-    let mapped_color = aces_tone_mapping(final_color);
-    let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
+    //let mapped_color = aces_tone_mapping(final_color);
+    //let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
 
-    return vec4f(corrected_color, 1.0);
+    return vec4f(final_color, uMyUniforms.options.y);
 }
 )shader";

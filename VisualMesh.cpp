@@ -207,8 +207,13 @@ void VisualMesh::configure_render_pipeline() {
     blend_state.color.srcFactor = WGPUBlendFactor_SrcAlpha;
     blend_state.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
     blend_state.color.operation = WGPUBlendOperation_Add;
-    blend_state.alpha.srcFactor = WGPUBlendFactor_Zero;
-    blend_state.alpha.dstFactor = WGPUBlendFactor_One;
+
+    //blend_state.alpha.srcFactor = WGPUBlendFactor_Zero;
+    //blend_state.alpha.dstFactor = WGPUBlendFactor_One;
+    //blend_state.alpha.operation = WGPUBlendOperation_Add;
+
+    blend_state.alpha.srcFactor = WGPUBlendFactor_SrcAlpha;     // Use source alpha
+    blend_state.alpha.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha; // Blend with destination
     blend_state.alpha.operation = WGPUBlendOperation_Add;
 
     WGPUColorTargetState color_target = {};
@@ -327,15 +332,16 @@ void VisualMesh::on_camera_update() {
     }
 }
 
-void VisualMesh::update_ui(std::string name, int index) {
+void VisualMesh::update_ui(std::string name, int) {
     ImGui::Checkbox(name.c_str(), &m_visible);
     if (m_visible) {
 
         bool update_uniforms = false;
         bool update_color    = false;
         update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
+        update_uniforms |= ImGui::SliderFloat("Opacity", &m_uniforms.options.opacity, 0.0f, 1.0f);
         update_uniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
-        m_uniforms.show_wireframe[0] = m_show_wireframe ? 1 : 0;
+        m_uniforms.options.show_wireframe = m_show_wireframe ? 1.0f : 0.0f;
         if (m_show_wireframe) {
             update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframe_color);
         }
@@ -390,6 +396,30 @@ FaceColorProperty* VisualMesh::add_face_colors(std::string_view name, const std:
     return slot.get();
 }
 
+void VisualMesh::update_face_colors() {
+    bool using_face_property = false;
+    for (auto& [name, prop] : m_color_properties) {
+        if (prop->is_enabled()) {
+            using_face_property                    = true;
+            const std::vector<glm::vec3>& colors = prop->get_colors();
+
+            size_t num_attributes = m_vertex_attributes.size();
+            for (size_t i = 0; i < num_attributes; ++i) {
+                m_vertex_attributes[i].color = colors[i / 3];
+            }
+            break;
+        }
+    }
+
+    if (!using_face_property) {
+        size_t num_attributes = m_vertex_attributes.size();
+        for (size_t i = 0; i < num_attributes; ++i) {
+            m_vertex_attributes[i].color = m_mesh_color;
+        }
+    }
+    m_attributes_dirty = true;
+}
+
 VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, const Renderer& renderer)
     : Drawable(&renderer, BoundingBox(positions)) {
 
@@ -411,37 +441,15 @@ VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, cons
     //  configure_render_pipeline();
 }
 
-VisualLineNetwork::VisualLineNetwork(const std::vector<glm::vec3>&           positions,
-                                     const std::vector<std::pair<int, int>>& lines, const Renderer& renderer)
-    : Drawable(&renderer, BoundingBox(positions)) {
-    Mesh line_mesh = create_cylinder(50).triangulate();
-    save_obj(std::string(RESOURCE_DIR) + "/temp.obj", line_mesh);
-    set_flat_normals(line_mesh);
-    m_lines = std::make_unique<InstancedMesh>(line_mesh, lines.size(), renderer);
-    std::vector<glm::mat4x4> transforms;
-
-    for (auto& line : lines) {
-        glm::vec3 p1 = positions[line.first];
-        glm::vec3 p2 = positions[line.second];
-        glm::vec3 p  = (p1 + p2) / 2.0f;
-        glm::vec3 d  = p2 - p1;
-        float     l  = glm::length(d);
-        d            = glm::normalize(d);
-
-        glm::vec3 default_dir(0.0f, 0.0f, 1.0f);
-
-        glm::mat4 scaling     = glm::scale(glm::mat4(1), glm::vec3(m_radius, m_radius, l));
-        glm::mat4 translation = glm::translate(glm::mat4(1), p);
-
-        float     angle         = acos(glm::dot(default_dir, d));
-        glm::vec3 rotation_axis = glm::normalize(glm::cross(default_dir, d));
-        glm::mat4 rotation      = glm::rotate(glm::mat4(1.0f), angle, rotation_axis);
-
-        glm::mat4 t = translation * rotation * scaling;
-        transforms.push_back(t);
-    }
-    m_lines->set_instance_data(transforms, m_color);
-    m_lines->upload_instance_data();
+VisualLineNetwork::VisualLineNetwork(const std::vector<glm::vec3>& positions,
+                                    const std::vector<std::pair<int, int>>& lines, const Renderer& renderer)
+    : Drawable(&renderer, BoundingBox(positions)), m_positions(positions), m_lines(lines) {
+    Mesh line_mesh = create_cylinder(16).triangulate();
+    m_line_mesh = std::make_unique<InstancedMesh>(line_mesh, lines.size(), renderer);
+    Mesh sphere_mesh = create_sphere(16, 16);
+    set_smooth_normals(sphere_mesh);
+    m_vertices_mesh = std::make_unique<InstancedMesh>(sphere_mesh, positions.size(), renderer);
+    compute_transforms();
 }
 
 } // namespace rr
