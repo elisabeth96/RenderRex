@@ -1,21 +1,22 @@
 #include "Renderer.h"
 #include "Drawable.h"
+#include "VisualMesh.h"
 
 #include "glfw3webgpu/glfw3webgpu.h"
 #include <GLFW/glfw3.h>
 
-#include <imgui.h>
+#include "imguizmo/ImGuizmo.h"
 #include <backends/imgui_impl_glfw.h>
 #include <backends/imgui_impl_wgpu.h>
-#include "imguizmo/ImGuizmo.h"
+#include <imgui.h>
 
 #include <cassert>
 #include <chrono>
-#include <thread>
 #include <iostream>
+#include <thread>
 
-#include <webgpu/webgpu.h>
 #include <imguizmo/ImGuizmo.h>
+#include <webgpu/webgpu.h>
 
 #include <glm/gtc/type_ptr.hpp>
 
@@ -34,13 +35,13 @@ std::string to_string(const WGPUStringView& view) {
 
 WGPUAdapter request_adapter_sync(WGPUInstance instance, WGPURequestAdapterOptions const* options) {
     struct UserData {
-        WGPUAdapter adapter = nullptr;
-        bool request_ended = false;
+        WGPUAdapter adapter       = nullptr;
+        bool        request_ended = false;
     };
     UserData user_data;
 
     auto on_adapter_request_ended = [](WGPURequestAdapterStatus status, WGPUAdapter adapter, WGPUStringView message,
-                                    void* p_user_data, void*) {
+                                       void* p_user_data, void*) {
         auto& ud = *reinterpret_cast<UserData*>(p_user_data);
         if (status == WGPURequestAdapterStatus_Success) {
             ud.adapter = adapter;
@@ -52,13 +53,11 @@ WGPUAdapter request_adapter_sync(WGPUInstance instance, WGPURequestAdapterOption
     };
 
     // Important: Use AllowSpontaneous so Dawn can call back on its own thread.
-    WGPURequestAdapterCallbackInfo callback_info = {
-        /* userdataLabel  */ nullptr,
-        /* mode          */ WGPUCallbackMode_AllowSpontaneous,
-        /* callback      */ on_adapter_request_ended,
-        /* userdata      */ &user_data,
-        /* scope         */ nullptr
-    };
+    WGPURequestAdapterCallbackInfo callback_info = {/* userdataLabel  */ nullptr,
+                                                    /* mode          */ WGPUCallbackMode_AllowSpontaneous,
+                                                    /* callback      */ on_adapter_request_ended,
+                                                    /* userdata      */ &user_data,
+                                                    /* scope         */ nullptr};
 
     wgpuInstanceRequestAdapter(instance, options, callback_info);
 
@@ -104,13 +103,13 @@ WGPUTextureView get_next_surface_texture_view(WGPUSurface surface) {
  */
 WGPUDevice request_device_sync(WGPUAdapter adapter, WGPUDeviceDescriptor const* descriptor) {
     struct UserData {
-        WGPUDevice device = nullptr;
-        bool request_ended = false;
+        WGPUDevice device        = nullptr;
+        bool       request_ended = false;
     };
     UserData user_data;
 
     WGPURequestDeviceCallback on_device_request_ended = [](WGPURequestDeviceStatus status, WGPUDevice device,
-                                                        WGPUStringView message, void* p_user_data, void*) {
+                                                           WGPUStringView message, void* p_user_data, void*) {
         UserData& user_data = *reinterpret_cast<UserData*>(p_user_data);
         if (status == WGPURequestDeviceStatus_Success) {
             user_data.device = device;
@@ -121,7 +120,7 @@ WGPUDevice request_device_sync(WGPUAdapter adapter, WGPUDeviceDescriptor const* 
     };
 
     WGPURequestDeviceCallbackInfo callback_info = {nullptr, WGPUCallbackMode::WGPUCallbackMode_AllowSpontaneous,
-                                                  on_device_request_ended, (void*)&user_data, nullptr};
+                                                   on_device_request_ended, (void*)&user_data, nullptr};
 
     wgpuAdapterRequestDevice(adapter, descriptor, callback_info);
 
@@ -172,9 +171,9 @@ WGPURenderPassEncoder Renderer::create_render_pass(WGPUTextureView next_texture,
     render_pass_color_attachment.clearValue    = WGPUColor{0.4, 0.4, 1, 1};
     render_pass_color_attachment.depthSlice    = WGPU_DEPTH_SLICE_UNDEFINED;
     render_pass_color_attachment.nextInChain   = nullptr;
-    render_pass_desc.colorAttachmentCount     = 1;
-    render_pass_desc.colorAttachments         = &render_pass_color_attachment;
-    render_pass_desc.nextInChain              = nullptr;
+    render_pass_desc.colorAttachmentCount      = 1;
+    render_pass_desc.colorAttachments          = &render_pass_color_attachment;
+    render_pass_desc.nextInChain               = nullptr;
 
     WGPURenderPassDepthStencilAttachment depth_stencil_attachment = {};
     depth_stencil_attachment.view                                 = m_depth_texture_view;
@@ -211,36 +210,67 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
     ImGuizmo::BeginFrame();
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
-    ImGui::Begin("User Interface"); 
+    ImGui::Begin("User Interface");
 
-    ImGui::Text("Select your drawables"); 
     int id = 0;
-    for (const auto& [name, drawable] : m_drawables) {
-        ImGui::PushID(name.c_str());
+    if (ImGui::CollapsingHeader("Meshes")) {
+        for (const auto& [name, mesh] : m_meshes) {
 
-        drawable->update_ui(name, id);
-
-        if (drawable->m_visible && drawable->get_transform() != nullptr) {
-            const char* transform_items[] = { "None", "Translate", "Rotate", "Scale" };
-            int current_item = static_cast<int>(drawable->get_transform_status());
-            std::string combo_label = "Transform";
-            if (ImGui::Combo(combo_label.c_str(), &current_item, transform_items, IM_ARRAYSIZE(transform_items))) {
-                drawable->set_transform_status(static_cast<TransformStatus>(current_item));
+            ImGui::PushID(name.c_str());
+            ImGui::Text(name.c_str());
+            ImGui::SameLine();
+            if(ImGui::Checkbox("Mesh", &mesh->m_visible_mesh)) {
+                mesh->set_mesh_visible(mesh->m_visible_mesh);
             }
-        }
+            ImGui::SameLine();
+            if(ImGui::Checkbox("Wireframe", &mesh->m_show_wireframe)) {
+                mesh->set_wireframe_visible(mesh->m_show_wireframe);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Options")) {
+                mesh->m_show_options = !mesh->m_show_options;
+            }
 
-        ImGuizmo::PushID(id);
-        handle_guizmo(drawable.get());
-        ImGuizmo::PopID();
+            mesh->update_ui(name, id);
 
-        ImGui::PopID();
-        
-        // Draw separator line between drawables
-        if (id < m_drawables.size() - 1) {
-            ImGui::Separator();
+            if (mesh->m_show_options && mesh->get_transform() != nullptr) {
+                const char* transform_items[] = {"None", "Translate", "Rotate", "Scale"};
+                int         current_item      = static_cast<int>(mesh->get_transform_status());
+                std::string combo_label       = "Transform";
+                if (ImGui::Combo(combo_label.c_str(), &current_item, transform_items, IM_ARRAYSIZE(transform_items))) {
+                    mesh->set_transform_status(static_cast<TransformStatus>(current_item));
+                }
+            }
+
+            ImGuizmo::PushID(id);
+            handle_guizmo(mesh.get());
+            ImGuizmo::PopID();
+
+            ImGui::PopID();
+
+            // Draw separator line between drawables
+            if (id < m_meshes.size() - 1) {
+                ImGui::Separator();
+            }
+
+            ++id;
         }
-        
-        ++id;
+    }
+
+    if (ImGui::CollapsingHeader("Point Clouds")) {
+        for (const auto& [name, point_cloud] : m_point_clouds) {
+            ImGui::PushID(name.c_str());
+            point_cloud->update_ui(name, id);
+            ImGui::PopID();
+        }
+    }
+
+    if (ImGui::CollapsingHeader("Line Networks")) {
+        for (const auto& [name, line_network] : m_line_networks) {
+            ImGui::PushID(name.c_str());
+            line_network->update_ui(name, id);
+            ImGui::PopID();
+        }
     }
 
     ImGui::End();
@@ -284,8 +314,14 @@ void Renderer::update_frame() {
     WGPURenderPassEncoder render_pass = create_render_pass(next_texture, encoder);
 
     // Draw all drawables
-    for (auto& drawable : m_drawables) {
-        drawable.second->draw(render_pass);
+    for (auto& mesh : m_meshes) {
+        mesh.second->draw(render_pass);
+    }
+    for (auto& point_cloud : m_point_clouds) {
+        point_cloud.second->draw(render_pass);
+    }
+    for (auto& line_network : m_line_networks) {
+        line_network.second->draw(render_pass);
     }
 
     // Update GUI and Guizmo manipulators
@@ -298,7 +334,7 @@ void Renderer::update_frame() {
 
     WGPUCommandBufferDescriptor cmd_buffer_descriptor{};
     cmd_buffer_descriptor.label = to_string_view("Command buffer");
-    WGPUCommandBuffer command = wgpuCommandEncoderFinish(encoder, &cmd_buffer_descriptor);
+    WGPUCommandBuffer command   = wgpuCommandEncoderFinish(encoder, &cmd_buffer_descriptor);
     wgpuCommandEncoderRelease(encoder);
     wgpuQueueSubmit(m_queue, 1, &command);
     wgpuCommandBufferRelease(command);
@@ -321,12 +357,12 @@ Renderer& Renderer::get() {
     return instance;
 }
 
-Drawable* Renderer::register_drawable(std::string_view name, std::unique_ptr<Drawable> drawable) {
-    auto& slot = m_drawables[std::string(name)];
-    slot       = std::move(drawable);
+VisualMesh* Renderer::register_mesh(std::string_view name, std::unique_ptr<VisualMesh> mesh) {
+    auto& slot = m_meshes[std::string(name)];
+    slot       = std::move(mesh);
 
     BoundingBox global_bb{};
-    for (auto& p : m_drawables) {
+    for (auto& p : m_meshes) {
         global_bb.expand_to_include(p.second->m_bbox);
     }
 
@@ -335,7 +371,48 @@ Drawable* Renderer::register_drawable(std::string_view name, std::unique_ptr<Dra
     glm::vec3 center         = (global_bb.lower + global_bb.upper) * 0.5f;
     glm::vec3 offset         = current_eye - current_center;
     glm::vec3 new_eye        = center + offset;
-    //m_camera                 = Camera(new_eye, center, m_camera.up());
+    // m_camera                 = Camera(new_eye, center, m_camera.up());
+    on_camera_update();
+
+    return slot.get();
+}
+
+VisualPointCloud* Renderer::register_point_cloud(std::string_view name, std::unique_ptr<VisualPointCloud> point_cloud) {
+    auto& slot = m_point_clouds[std::string(name)];
+    slot       = std::move(point_cloud);
+
+    BoundingBox global_bb{};
+    for (auto& p : m_point_clouds) {
+        global_bb.expand_to_include(p.second->m_bbox);
+    }
+
+    glm::vec3 current_eye    = m_camera.eye();
+    glm::vec3 current_center = m_camera.center();
+    glm::vec3 center         = (global_bb.lower + global_bb.upper) * 0.5f;
+    glm::vec3 offset         = current_eye - current_center;
+    glm::vec3 new_eye        = center + offset;
+    // m_camera                 = Camera(new_eye, center, m_camera.up());
+    on_camera_update();
+
+    return slot.get();
+}
+
+VisualLineNetwork* Renderer::register_line_network(std::string_view                   name,
+                                                   std::unique_ptr<VisualLineNetwork> line_network) {
+    auto& slot = m_line_networks[std::string(name)];
+    slot       = std::move(line_network);
+
+    BoundingBox global_bb{};
+    for (auto& p : m_line_networks) {
+        global_bb.expand_to_include(p.second->m_bbox);
+    }
+
+    glm::vec3 current_eye    = m_camera.eye();
+    glm::vec3 current_center = m_camera.center();
+    glm::vec3 center         = (global_bb.lower + global_bb.upper) * 0.5f;
+    glm::vec3 offset         = current_eye - current_center;
+    glm::vec3 new_eye        = center + offset;
+    // m_camera                 = Camera(new_eye, center, m_camera.up());
     on_camera_update();
 
     return slot.get();
@@ -356,7 +433,7 @@ void Renderer::initialize_depth_texture() { // Create the depth texture
     depth_texture_desc.usage                 = WGPUTextureUsage_RenderAttachment;
     depth_texture_desc.viewFormatCount       = 1;
     depth_texture_desc.viewFormats           = (WGPUTextureFormat*)&m_depth_texture_format;
-    WGPUTexture depth_texture               = wgpuDeviceCreateTexture(m_device, &depth_texture_desc);
+    WGPUTexture depth_texture                = wgpuDeviceCreateTexture(m_device, &depth_texture_desc);
 
     // Create the view of the depth texture manipulated by the rasterizer
     WGPUTextureViewDescriptor depth_texture_view_desc = {};
@@ -367,7 +444,7 @@ void Renderer::initialize_depth_texture() { // Create the depth texture
     depth_texture_view_desc.mipLevelCount             = 1;
     depth_texture_view_desc.dimension                 = WGPUTextureViewDimension_2D;
     depth_texture_view_desc.format                    = m_depth_texture_format;
-    m_depth_texture_view                             = wgpuTextureCreateView(depth_texture, &depth_texture_view_desc);
+    m_depth_texture_view                              = wgpuTextureCreateView(depth_texture, &depth_texture_view_desc);
 }
 
 void Renderer::initialize_window() {
@@ -442,19 +519,19 @@ void Renderer::initialize_device() {
 
     m_device = request_device_sync(adapter, &deviceDesc);
 
-    //auto on_device_error = [](WGPUErrorType type, WGPUStringView message, void* /* pUserData */, void*) {
-    //    std::cout << "Uncaptured device error: type " << type;
-    //    if (message.length > 0)
-    //        std::cout << " (" << to_string(message) << ")";
-    //    std::cout << std::endl;
-    //};
+    // auto on_device_error = [](WGPUErrorType type, WGPUStringView message, void* /* pUserData */, void*) {
+    //     std::cout << "Uncaptured device error: type " << type;
+    //     if (message.length > 0)
+    //         std::cout << " (" << to_string(message) << ")";
+    //     std::cout << std::endl;
+    // };
 
     // wgpuDeviceSetUncapturedErrorCallback(m_device, onDeviceError, nullptr /* pUserData */);
     wgpuAdapterRelease(adapter);
 }
 
 void Renderer::configure_surface() {
-    m_swap_chain_format               = WGPUTextureFormat_BGRA8Unorm;
+    m_swap_chain_format             = WGPUTextureFormat_BGRA8Unorm;
     WGPUSurfaceConfiguration config = {};
     config.device                   = m_device;
     config.format                   = m_swap_chain_format;
@@ -515,14 +592,20 @@ void Renderer::update_projection() {
     float far_plane    = 100.0f;
     float near_plane   = 0.01f;
     float fov          = glm::radians(45.0f);
-    m_projection = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
+    m_projection       = glm::perspective(fov, aspect_ratio, near_plane, far_plane);
 }
 
 void Renderer::on_camera_update() {
     update_projection();
 
-    for (auto& drawable : m_drawables) {
-        drawable.second->on_camera_update();
+    for (auto& mesh : m_meshes) {
+        mesh.second->on_camera_update();
+    }
+    for (auto& point_cloud : m_point_clouds) {
+        point_cloud.second->on_camera_update();
+    }
+    for (auto& line_network : m_line_networks) {
+        line_network.second->on_camera_update();
     }
 }
 
@@ -596,35 +679,32 @@ void Renderer::handle_guizmo(Drawable* drawable) {
     // Get view and projection matrices
     glm::mat4 view = m_camera.transform();
     glm::mat4 proj = m_projection;
-    
+
     TransformStatus status = drawable->get_transform_status();
-    if (status == TransformStatus::None) return;
-        
+    if (status == TransformStatus::None)
+        return;
+
     glm::mat4 transform = *drawable->get_transform();
-        
+
     ImGuizmo::OPERATION operation;
     switch (status) {
-        case TransformStatus::Translation:
-            operation = ImGuizmo::TRANSLATE;
-            break;
-        case TransformStatus::Rotation:
-            operation = ImGuizmo::ROTATE;
-            break;
-        case TransformStatus::Scale:
-            operation = ImGuizmo::SCALE;
-            break;
-        default:
-            return;
+    case TransformStatus::Translation:
+        operation = ImGuizmo::TRANSLATE;
+        break;
+    case TransformStatus::Rotation:
+        operation = ImGuizmo::ROTATE;
+        break;
+    case TransformStatus::Scale:
+        operation = ImGuizmo::SCALE;
+        break;
+    default:
+        return;
     }
 
     // Manipulate
-    if (ImGuizmo::Manipulate(
-        glm::value_ptr(view),
-        glm::value_ptr(proj),
-        operation,
-        ImGuizmo::WORLD,
-        glm::value_ptr(transform))) {
-        
+    if (ImGuizmo::Manipulate(glm::value_ptr(view), glm::value_ptr(proj), operation, ImGuizmo::WORLD,
+                             glm::value_ptr(transform))) {
+
         drawable->set_transform(transform);
     }
 }

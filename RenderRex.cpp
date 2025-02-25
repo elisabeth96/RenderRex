@@ -28,26 +28,26 @@ VisualMesh* make_visual(std::string name, const Mesh& mesh) {
         set_flat_normals(copy);
         m = &copy;
     }
-    Drawable* drawable = renderer.register_drawable(name, std::make_unique<VisualMesh>(*m, renderer));
-    return dynamic_cast<VisualMesh*>(drawable);
+    VisualMesh* drawable = renderer.register_mesh(name, std::make_unique<VisualMesh>(*m, renderer));
+    return drawable;
 }
 
 VisualPointCloud* make_visual(std::string name, const std::vector<glm::vec3>& pos) {
     Renderer& renderer = Renderer::get();
 
-    Drawable* drawable = renderer.register_drawable(name, std::make_unique<VisualPointCloud>(pos, renderer));
-    return dynamic_cast<VisualPointCloud*>(drawable);
+    VisualPointCloud* drawable = renderer.register_point_cloud(name, std::make_unique<VisualPointCloud>(pos, renderer));
+    return drawable;
 }
 
 VisualLineNetwork* make_visual(std::string name, const std::vector<glm::vec3>& pos,
                                const std::vector<std::pair<int, int>>& lines) {
     Renderer& renderer = Renderer::get();
 
-    Drawable* drawable = renderer.register_drawable(name, std::make_unique<VisualLineNetwork>(pos, lines, renderer));
-    return dynamic_cast<VisualLineNetwork*>(drawable);
+    VisualLineNetwork* drawable = renderer.register_line_network(name, std::make_unique<VisualLineNetwork>(pos, lines, renderer));
+    return drawable;
 }
 
-InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances) {
+/*InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_instances) {
     Renderer& renderer = Renderer::get();
     assert(!mesh.normal_faces.empty());
     Mesh        copy;
@@ -60,7 +60,7 @@ InstancedMesh* make_instanced(std::string name, const Mesh& mesh, size_t num_ins
     auto      im       = std::make_unique<InstancedMesh>(*mesh_ptr, num_instances, renderer);
     Drawable* drawable = renderer.register_drawable(name, std::move(im));
     return dynamic_cast<InstancedMesh*>(drawable);
-}
+}*/
 
 void set_user_callback(std::function<void()> callback) {
     Renderer& renderer = Renderer::get();

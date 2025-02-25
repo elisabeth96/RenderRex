@@ -13,10 +13,10 @@
 namespace rr {
 
 struct VisualMeshOptions {
-    float show_wireframe = 1.0f;
-    float opacity        = 1.0f;
-    float show_mesh      = 1.0f;
-    float padding        = 0.0f;
+    float show_wireframe      = 1.0f;
+    float opacity             = 1.0f;
+    float show_mesh           = 1.0f;
+    float wireframe_thickness = 1.5f;
 };
 
 struct VisualMeshUniforms {
@@ -60,14 +60,22 @@ public:
 
     FaceColorProperty* add_face_colors(std::string_view name, const std::vector<glm::vec3>& colors);
 
-    void update_face_colors();
+    void update_face_colors(const std::string& name);
 
-    void set_hide_mesh(bool hide) {
-        m_uniforms.options.show_mesh = hide ? 0.0f : 1.0f;
+    void set_mesh_visible(bool show) {
+        m_uniforms.options.show_mesh = show ? 1.0f : 0.0f;
         m_uniforms_dirty             = true;
     }
 
+    void set_wireframe_visible(bool show) {
+        m_uniforms.options.show_wireframe = show ? 1.0f : 0.0f;
+        m_uniforms_dirty                 = true;
+    }
+
     Mesh m_mesh;
+    bool m_show_wireframe = true;
+    bool m_visible_mesh   = true;
+    bool m_show_options   = false;
 
 private:
     WGPUBuffer         m_vertex_buffer  = nullptr;
@@ -78,8 +86,7 @@ private:
     bool               m_uniforms_dirty = false;
     VisualMeshUniforms m_uniforms;
 
-    bool      m_show_wireframe = true;
-    glm::vec3 m_mesh_color     = glm::vec3(0.45f, 0.55f, 0.60f);
+    glm::vec3 m_mesh_color = glm::vec3(0.45f, 0.55f, 0.60f);
 
     bool                                    m_attributes_dirty = false;
     std::vector<VisualMeshVertexAttributes> m_vertex_attributes;
@@ -134,8 +141,9 @@ public:
     std::unique_ptr<InstancedMesh> m_spheres;
     float                          m_init_radius = 0.001f;
     // for Imgui interface:
-    ImVec4 m_color  = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-    float  m_radius = 1.0f;
+    ImVec4 m_color   = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    float  m_radius  = 1.0f;
+    bool   m_visible = true;
 };
 
 class VisualLineNetwork : public Drawable {

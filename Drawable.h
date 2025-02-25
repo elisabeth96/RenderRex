@@ -39,9 +39,6 @@ public:
 
     const Renderer* m_renderer = nullptr;
     BoundingBox     m_bbox;
-
-    bool m_visible = true;
-
     TransformStatus m_transform_status{TransformStatus::None};
 };
 

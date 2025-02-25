@@ -158,6 +158,9 @@ void FaceVectorProperty::update_instance_data() {
 }
 
 void FaceVectorProperty::draw(WGPURenderPassEncoder pass) {
+    if (!m_is_enabled) {
+        return;
+    }
     if (m_instance_data_dirty) {
         update_instance_data();
         m_arrows->upload_instance_data();
@@ -190,7 +193,7 @@ FaceColorProperty::FaceColorProperty(VisualMesh* vmesh, const std::vector<glm::v
 
 void FaceColorProperty::set_colors(const std::vector<glm::vec3>& colors) {
     m_colors = colors;
-    m_vmesh->update_face_colors();
+    m_vmesh->update_face_colors("");
 }
 
 } // namespace rr

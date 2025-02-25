@@ -27,6 +27,14 @@ public:
 
     void initialize_arrows(const std::vector<glm::vec3>& vectors, const std::vector<glm::vec3>& face_centers);
 
+    bool is_enabled() const {
+        return m_is_enabled;
+    }
+
+    void set_enabled(bool enabled) {
+        m_is_enabled = enabled;
+    }
+
     glm::vec3 m_color = glm::vec3(0.882, 0.902, 0.376);
     // Note that radius and length are not absolute but with respect to m_scale.
     float m_scale  = 0.f;
@@ -44,6 +52,7 @@ public:
     std::unique_ptr<InstancedMesh> m_arrows;
 
     VisualMesh* m_vmesh = nullptr;
+    bool        m_is_enabled = false;
 };
 
 class FaceColorProperty {

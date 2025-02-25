@@ -20,6 +20,8 @@ namespace rr {
 
 class Drawable;
 class VisualMesh;
+class VisualPointCloud;
+class VisualLineNetwork;
 struct Mesh;
 
 class Renderer {
@@ -62,7 +64,9 @@ public:
 
     static Renderer& get();
 
-    Drawable* register_drawable(std::string_view name, std::unique_ptr<Drawable> drawable);
+    VisualMesh* register_mesh(std::string_view name, std::unique_ptr<VisualMesh> mesh);
+    VisualPointCloud* register_point_cloud(std::string_view name, std::unique_ptr<VisualPointCloud> point_cloud);
+    VisualLineNetwork* register_line_network(std::string_view name, std::unique_ptr<VisualLineNetwork> line_network);
 
     void set_user_callback(std::function<void()> callback);
 
@@ -89,7 +93,9 @@ public:
     GLFWwindow* m_window;
     WGPUSurface m_surface;
 
-    std::unordered_map<std::string, std::unique_ptr<Drawable>> m_drawables;
+    std::unordered_map<std::string, std::unique_ptr<VisualMesh>> m_meshes;
+    std::unordered_map<std::string, std::unique_ptr<VisualPointCloud>> m_point_clouds;
+    std::unordered_map<std::string, std::unique_ptr<VisualLineNetwork>> m_line_networks;
 
     std::function<void()> m_user_callback;
 

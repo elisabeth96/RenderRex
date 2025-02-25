@@ -19,7 +19,7 @@ struct VertexOutput {
 	@location(5) color: vec3f,
 };
 
-struct MyUniforms {
+struct VisualMeshUniforms {
     projectionMatrix: mat4x4f,
     viewMatrix: mat4x4f,
     modelMatrix: mat4x4f,
@@ -27,7 +27,7 @@ struct MyUniforms {
     options : vec4f,
 };
 
-@group(0) @binding(0) var<uniform> uMyUniforms: MyUniforms;
+@group(0) @binding(0) var<uniform> uVmUniforms: VisualMeshUniforms;
 
 struct Light {
     position: vec3f,
@@ -54,14 +54,14 @@ fn calculate_lighting(light: Light, normal: vec3f, view_pos: vec3f, view_dir: ve
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
     var out: VertexOutput;
-    let modelPos = uMyUniforms.modelMatrix * vec4f(in.position, 1.0);
+    let modelPos = uVmUniforms.modelMatrix * vec4f(in.position, 1.0);
     out.world_pos = modelPos.xyz;
-    out.position = uMyUniforms.projectionMatrix * uMyUniforms.viewMatrix * modelPos;
-    let world_normal = normalize((uMyUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
-    out.world_normal = (uMyUniforms.viewMatrix * vec4f(world_normal, 0.0)).xyz;
+    out.position = uVmUniforms.projectionMatrix * uVmUniforms.viewMatrix * modelPos;
+    let world_normal = normalize((uVmUniforms.modelMatrix * vec4f(in.normal, 0.0)).xyz);
+    out.world_normal = (uVmUniforms.viewMatrix * vec4f(world_normal, 0.0)).xyz;
     out.bary = in.bary;
     out.edge_mask = in.edge_mask;
-    out.view_pos = (uMyUniforms.viewMatrix * modelPos).xyz;
+    out.view_pos = (uVmUniforms.viewMatrix * modelPos).xyz;
 	out.color = in.color;
     return out;
 }
@@ -102,7 +102,7 @@ fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location
     );
 
     let meshColor = in.color;
-    let wireframe_color = uMyUniforms.wireframeColor.xyz;
+    let wireframe_color = uVmUniforms.wireframeColor.xyz;
     var result = vec3f(0.0);
 
     // Calculate lighting contributions
@@ -120,29 +120,28 @@ fn fs_main(@builtin(front_facing) is_front: bool, in: VertexOutput) -> @location
     result = aces_tone_mapping(result);
     result = pow(result, vec3f(1.0/2.2));
 
-    // as vec4
-	var final_color = result;
+	var final_color = vec4f(result, 1.0);
 
-    //let show_mesh = uMyUniforms.options.z;
-    //if (show_mesh == 0.0) {
-    //    final_color = wireframe_color;
-    //}
+    let show_mesh = uVmUniforms.options.z;
+    if (show_mesh == 0.0) {
+        final_color = vec4f(0.0, 0.0, 0.0, 0.0);
+    }
 
-    if (uMyUniforms.options.x == 1.0) {
+    if (uVmUniforms.options.x == 1.0) {
 		// Wire frame calculation (preserved from original)
         let d = fwidth(in.bary);
         let factor = smoothstep(vec3(0.0), d*1.5, in.bary);
         let factor_masked = max(factor, in.edge_mask);
         let nearest = min(min(factor_masked.x, factor_masked.y), factor_masked.z);
-
+        let wc4 = vec4f(wireframe_color, 1.0);
         // Mix wireframe with shaded mesh
-        final_color = mix(wireframe_color, result, nearest);
+        final_color = mix(wc4, final_color, nearest);
 	}
 
-    // Tone mapping and gamma correction
-    //let mapped_color = aces_tone_mapping(final_color);
-    //let corrected_color = pow(mapped_color, vec3f(1.0/2.2));
+    if (final_color.a < 0.05) {
+        discard;
+    }
 
-    return vec4f(final_color, uMyUniforms.options.y);
+    return final_color;
 }
 )shader";

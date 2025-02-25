@@ -3,11 +3,11 @@
 #include "Camera.h"
 #include "InstancedMesh.h"
 #include "Mesh.h"
-#include "Utils.h"
 #include "Primitives.h"
 #include "Property.h"
 #include "Renderer.h"
 #include "ShaderCode.h"
+#include "Utils.h"
 
 #include <iostream>
 
@@ -125,7 +125,7 @@ WGPUShaderModule createShaderModule(WGPUDevice device, const char* shader_source
 
     shader_code_desc.chain.next  = nullptr;
     shader_code_desc.chain.sType = WGPUSType_ShaderSourceWGSL;
-    shader_desc.nextInChain     = &shader_code_desc.chain;
+    shader_desc.nextInChain      = &shader_code_desc.chain;
     shader_code_desc.code        = to_string_view(shader_source);
 
     WGPUShaderModule shader_module = wgpuDeviceCreateShaderModule(device, &shader_desc);
@@ -208,12 +208,8 @@ void VisualMesh::configure_render_pipeline() {
     blend_state.color.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha;
     blend_state.color.operation = WGPUBlendOperation_Add;
 
-    //blend_state.alpha.srcFactor = WGPUBlendFactor_Zero;
-    //blend_state.alpha.dstFactor = WGPUBlendFactor_One;
-    //blend_state.alpha.operation = WGPUBlendOperation_Add;
-
-    blend_state.alpha.srcFactor = WGPUBlendFactor_SrcAlpha;     // Use source alpha
-    blend_state.alpha.dstFactor = WGPUBlendFactor_OneMinusSrcAlpha; // Blend with destination
+    blend_state.alpha.srcFactor = WGPUBlendFactor_One;
+    blend_state.alpha.dstFactor = WGPUBlendFactor_Zero;
     blend_state.alpha.operation = WGPUBlendOperation_Add;
 
     WGPUColorTargetState color_target = {};
@@ -246,15 +242,15 @@ void VisualMesh::configure_render_pipeline() {
 
     // Create a bind group layout
     WGPUBindGroupLayoutDescriptor bind_group_layout_desc{};
-    bind_group_layout_desc.entryCount      = 1;
-    bind_group_layout_desc.entries         = &binding_layout;
+    bind_group_layout_desc.entryCount     = 1;
+    bind_group_layout_desc.entries        = &binding_layout;
     WGPUBindGroupLayout bind_group_layout = wgpuDeviceCreateBindGroupLayout(renderer.m_device, &bind_group_layout_desc);
 
     // Create the pipeline layout
     WGPUPipelineLayoutDescriptor layout_desc{};
     layout_desc.bindGroupLayoutCount = 1;
     layout_desc.bindGroupLayouts     = (WGPUBindGroupLayout*)&bind_group_layout;
-    WGPUPipelineLayout layout       = wgpuDeviceCreatePipelineLayout(renderer.m_device, &layout_desc);
+    WGPUPipelineLayout layout        = wgpuDeviceCreatePipelineLayout(renderer.m_device, &layout_desc);
     pipeline_desc.layout             = layout;
 
     // Create vertex buffer
@@ -283,7 +279,7 @@ void VisualMesh::configure_render_pipeline() {
     bind_group_desc.layout                  = bind_group_layout;
     bind_group_desc.entryCount              = bind_group_layout_desc.entryCount;
     bind_group_desc.entries                 = &binding;
-    m_bind_group                           = wgpuDeviceCreateBindGroup(renderer.m_device, &bind_group_desc);
+    m_bind_group                            = wgpuDeviceCreateBindGroup(renderer.m_device, &bind_group_desc);
 
     m_pipeline = wgpuDeviceCreateRenderPipeline(renderer.m_device, &pipeline_desc);
     wgpuShaderModuleRelease(shader_module);
@@ -295,8 +291,9 @@ void VisualMesh::configure_render_pipeline() {
 }
 
 void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
-    if (!m_visible) return;
-    
+    if (!m_visible_mesh && !m_show_wireframe)
+        return;
+
     if (m_attributes_dirty) {
         size_t size = m_vertex_attributes.size() * sizeof(VisualMeshVertexAttributes);
         wgpuQueueWriteBuffer(Renderer::get().m_queue, m_vertex_buffer, 0, m_vertex_attributes.data(), size);
@@ -324,7 +321,7 @@ void VisualMesh::draw(WGPURenderPassEncoder render_pass) {
 void VisualMesh::on_camera_update() {
     m_uniforms.view_matrix       = m_renderer->m_camera.transform();
     m_uniforms.projection_matrix = m_renderer->m_projection;
-    m_uniforms_dirty            = true;
+    m_uniforms_dirty             = true;
 
     // update vector properties
     for (auto& [name, prop] : m_vector_properties) {
@@ -332,22 +329,13 @@ void VisualMesh::on_camera_update() {
     }
 }
 
-void VisualMesh::update_ui(std::string name, int) {
-    ImGui::Checkbox(name.c_str(), &m_visible);
-    if (m_visible) {
+void VisualMesh::update_ui(std::string, int) {
+    bool update_uniforms              = false;
+    bool update_color                 = false;
+    if (m_show_options) {
 
-        bool update_uniforms = false;
-        bool update_color    = false;
         update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
-        update_uniforms |= ImGui::SliderFloat("Opacity", &m_uniforms.options.opacity, 0.0f, 1.0f);
-        update_uniforms |= ImGui::Checkbox("Wireframe", &m_show_wireframe);
-        m_uniforms.options.show_wireframe = m_show_wireframe ? 1.0f : 0.0f;
-        if (m_show_wireframe) {
-            update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframe_color);
-        }
-
-        if (update_uniforms)
-            m_uniforms_dirty = true;
+        update_uniforms |= ImGui::ColorEdit3("Wireframe Color", (float*)&m_uniforms.wireframe_color);
 
         if (update_color) {
             auto it = std::find_if(m_color_properties.begin(), m_color_properties.end(),
@@ -359,23 +347,40 @@ void VisualMesh::update_ui(std::string name, int) {
                 m_attributes_dirty = true;
             }
         }
-
         // face color properties
-        bool face_colors_changed = false;
         for (auto& [name, prop] : m_color_properties) {
             bool is_enabled = prop->is_enabled();
-            face_colors_changed |= ImGui::Checkbox(name.c_str(), &is_enabled);
+            bool face_colors_changed = ImGui::Checkbox(name.c_str(), &is_enabled);
             prop->set_enabled(is_enabled);
+            if (face_colors_changed) {
+                update_face_colors(name);
+            }
         }
 
-        if (face_colors_changed)
-            update_face_colors();
+        // vector properties
+        std::string changed_name;
+        for (auto& [name, prop] : m_vector_properties) {
+            bool is_enabled = prop->is_enabled();
+            if( ImGui::Checkbox(name.c_str(), &is_enabled)) {
+                changed_name = name;
+                prop->set_enabled(is_enabled);
+            }
+        }
+        if (!changed_name.empty()) {
+            for (auto& [name, prop] : m_vector_properties) {
+                if (name != changed_name) {
+                    prop->set_enabled(false);
+                }
+            }
+        }
     }
+    if (update_uniforms)
+        m_uniforms_dirty = true;
 }
 
 void VisualMesh::set_transform(const glm::mat4& transform) {
     m_uniforms.model_matrix = transform;
-    m_uniforms_dirty = true;
+    m_uniforms_dirty        = true;
 }
 
 const glm::mat4* VisualMesh::get_transform() const {
@@ -396,18 +401,19 @@ FaceColorProperty* VisualMesh::add_face_colors(std::string_view name, const std:
     return slot.get();
 }
 
-void VisualMesh::update_face_colors() {
+void VisualMesh::update_face_colors(const std::string& changed_name) {
     bool using_face_property = false;
     for (auto& [name, prop] : m_color_properties) {
-        if (prop->is_enabled()) {
-            using_face_property                    = true;
+        if (name == changed_name && prop->is_enabled()) {
+            using_face_property                  = true;
             const std::vector<glm::vec3>& colors = prop->get_colors();
 
             size_t num_attributes = m_vertex_attributes.size();
             for (size_t i = 0; i < num_attributes; ++i) {
                 m_vertex_attributes[i].color = colors[i / 3];
             }
-            break;
+        } else {
+            prop->set_enabled(false);
         }
     }
 
@@ -441,11 +447,11 @@ VisualPointCloud::VisualPointCloud(const std::vector<glm::vec3>& positions, cons
     //  configure_render_pipeline();
 }
 
-VisualLineNetwork::VisualLineNetwork(const std::vector<glm::vec3>& positions,
-                                    const std::vector<std::pair<int, int>>& lines, const Renderer& renderer)
+VisualLineNetwork::VisualLineNetwork(const std::vector<glm::vec3>&           positions,
+                                     const std::vector<std::pair<int, int>>& lines, const Renderer& renderer)
     : Drawable(&renderer, BoundingBox(positions)), m_positions(positions), m_lines(lines) {
-    Mesh line_mesh = create_cylinder(16).triangulate();
-    m_line_mesh = std::make_unique<InstancedMesh>(line_mesh, lines.size(), renderer);
+    Mesh line_mesh   = create_cylinder(16).triangulate();
+    m_line_mesh      = std::make_unique<InstancedMesh>(line_mesh, lines.size(), renderer);
     Mesh sphere_mesh = create_sphere(16, 16);
     set_smooth_normals(sphere_mesh);
     m_vertices_mesh = std::make_unique<InstancedMesh>(sphere_mesh, positions.size(), renderer);
