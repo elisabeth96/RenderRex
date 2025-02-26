@@ -330,8 +330,8 @@ void VisualMesh::on_camera_update() {
 }
 
 void VisualMesh::update_ui(std::string, int) {
-    bool update_uniforms              = false;
-    bool update_color                 = false;
+    bool update_uniforms = false;
+    bool update_color    = false;
     if (m_show_options) {
 
         update_color |= ImGui::ColorEdit3("Color", (float*)&m_mesh_color);
@@ -348,23 +348,30 @@ void VisualMesh::update_ui(std::string, int) {
             }
         }
         // face color properties
-        for (auto& [name, prop] : m_color_properties) {
-            bool is_enabled = prop->is_enabled();
-            bool face_colors_changed = ImGui::Checkbox(name.c_str(), &is_enabled);
-            prop->set_enabled(is_enabled);
-            if (face_colors_changed) {
-                update_face_colors(name);
+        if (ImGui::TreeNode("Face Color Properties")) {
+
+            for (auto& [name, prop] : m_color_properties) {
+                bool is_enabled          = prop->is_enabled();
+                bool face_colors_changed = ImGui::Checkbox(name.c_str(), &is_enabled);
+                prop->set_enabled(is_enabled);
+                if (face_colors_changed) {
+                    update_face_colors(name);
+                }
             }
+            ImGui::TreePop();
         }
 
         // vector properties
         std::string changed_name;
-        for (auto& [name, prop] : m_vector_properties) {
-            bool is_enabled = prop->is_enabled();
-            if( ImGui::Checkbox(name.c_str(), &is_enabled)) {
-                changed_name = name;
-                prop->set_enabled(is_enabled);
+        if (ImGui::TreeNode("Vector Properties")) {
+            for (auto& [name, prop] : m_vector_properties) {
+                bool is_enabled = prop->is_enabled();
+                if (ImGui::Checkbox(name.c_str(), &is_enabled)) {
+                    changed_name = name;
+                    prop->set_enabled(is_enabled);
+                }
             }
+            ImGui::TreePop();
         }
         if (!changed_name.empty()) {
             for (auto& [name, prop] : m_vector_properties) {
@@ -381,6 +388,11 @@ void VisualMesh::update_ui(std::string, int) {
 void VisualMesh::set_transform(const glm::mat4& transform) {
     m_uniforms.model_matrix = transform;
     m_uniforms_dirty        = true;
+    
+    // Update all vector properties to apply the new transform
+    for (auto& [name, prop] : m_vector_properties) {
+        prop->m_instance_data_dirty = true;
+    }
 }
 
 const glm::mat4* VisualMesh::get_transform() const {

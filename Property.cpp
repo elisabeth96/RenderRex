@@ -4,7 +4,6 @@
 #include "Primitives.h"
 #include "VisualMesh.h"
 
-#include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtx/transform.hpp"
 
 namespace rr {
@@ -17,6 +16,7 @@ FaceVectorProperty::FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm:
     size_t total_edges         = 0;
 
     // Calculate face centers and average edge length
+    m_face_centers.resize(mesh.num_faces());
     for (size_t i = 0; i < mesh.num_faces(); ++i) {
         const auto& f = mesh.position_faces[i];
 
@@ -26,7 +26,7 @@ FaceVectorProperty::FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm:
             center += mesh.positions[f[j]];
         }
         center /= float(f.size());
-        face_centers[i] = center;
+        m_face_centers[i] = center;
 
         // Calculate length of each edge in the face
         for (size_t j = 0; j < f.size(); ++j) {
@@ -40,11 +40,10 @@ FaceVectorProperty::FaceVectorProperty(VisualMesh* vmesh, const std::vector<glm:
     }
 
     m_scale = float(average_edge_length);
-    initialize_arrows(vectors, face_centers);
+    initialize_arrows(vectors);
 }
 
-void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors,
-                                           const std::vector<glm::vec3>& face_centers) {
+void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors) {
     // Create base meshes for arrow
     Mesh cylinder = create_cylinder().triangulate();
     Mesh cone     = create_cone().triangulate();
@@ -136,13 +135,17 @@ void FaceVectorProperty::initialize_arrows(const std::vector<glm::vec3>& vectors
             angle = acos(glm::dot(y, v_normalized));
         }
 
-        m_rigid[i] = glm::translate(face_centers[i]) * glm::rotate(angle, axis);
+        m_rigid[i] = glm::translate(m_face_centers[i]) * glm::rotate(angle, axis);
     }
 
     m_instance_data_dirty = true;
 }
 
 void FaceVectorProperty::update_instance_data() {
+    // Get the parent mesh's transform
+    const glm::mat4& mesh_transform = *m_vmesh->get_transform();
+    bool update_translations = mesh_transform != glm::mat4(1.0f);
+    
     for (size_t i = 0; i < m_vector_lengths.size(); ++i) {
         float length_scale = m_vector_lengths[i] * m_scale * m_length;
         float radius_scale = m_radius * m_scale;
@@ -152,6 +155,10 @@ void FaceVectorProperty::update_instance_data() {
         m_transforms[i][0] *= s.x;
         m_transforms[i][1] *= s.y;
         m_transforms[i][2] *= s.z;
+        if(update_translations) {
+            glm::vec4 face_center = mesh_transform * glm::vec4(m_face_centers[i], 1.0f);
+            m_transforms[i][3] = face_center;
+        }
     }
 
     m_arrows->set_instance_data(m_transforms, m_color);

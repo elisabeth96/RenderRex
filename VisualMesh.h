@@ -126,8 +126,7 @@ public:
     };
 
     void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visible);
-        if (m_visible) {
+        if (m_visible && m_show_options) {
             std::string label_radius = "scale radius ##" + std::to_string(index);
             ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.5f, 10.5f);
             std::string label_color = "change color ##" + std::to_string(index);
@@ -138,12 +137,17 @@ public:
         }
     }
 
+    void set_visible(bool show) {
+        m_visible = show;
+    }
+
     std::unique_ptr<InstancedMesh> m_spheres;
     float                          m_init_radius = 0.001f;
     // for Imgui interface:
     ImVec4 m_color   = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
     float  m_radius  = 1.0f;
     bool   m_visible = true;
+    bool   m_show_options = false;
 };
 
 class VisualLineNetwork : public Drawable {
@@ -227,8 +231,7 @@ public:
     }
 
     void update_ui(std::string name, int index) override {
-        ImGui::Checkbox(name.c_str(), &m_visible);
-        if (m_visible) {
+        if (m_visible && m_show_options) {
             std::string label_radius = "set radius ##" + std::to_string(index);
             if (ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.005f, 1.0f)) {
                 set_radius(m_radius);
@@ -241,7 +244,12 @@ public:
         }
     }
 
+    void set_visible(bool show) {
+        m_visible = show;
+    }
+
     bool                                    m_visible = true;
+    bool                                    m_show_options = false;
     std::unique_ptr<InstancedMesh>          m_line_mesh;
     std::unique_ptr<InstancedMesh>          m_vertices_mesh;
     float                                   m_radius = 0.01f;

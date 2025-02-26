@@ -260,6 +260,15 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
     if (ImGui::CollapsingHeader("Point Clouds")) {
         for (const auto& [name, point_cloud] : m_point_clouds) {
             ImGui::PushID(name.c_str());
+            ImGui::Text(name.c_str());
+            ImGui::SameLine();
+            if(ImGui::Checkbox("Points", &point_cloud->m_visible)) {
+                point_cloud->set_visible(point_cloud->m_visible);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Options")) {
+                point_cloud->m_show_options = !point_cloud->m_show_options;
+            }
             point_cloud->update_ui(name, id);
             ImGui::PopID();
         }
@@ -268,6 +277,15 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
     if (ImGui::CollapsingHeader("Line Networks")) {
         for (const auto& [name, line_network] : m_line_networks) {
             ImGui::PushID(name.c_str());
+            ImGui::Text(name.c_str());
+            ImGui::SameLine();
+            if(ImGui::Checkbox("Lines", &line_network->m_visible)) {
+                line_network->set_visible(line_network->m_visible);
+            }
+            ImGui::SameLine();
+            if (ImGui::Button("Options")) {
+                line_network->m_show_options = !line_network->m_show_options;
+            }
             line_network->update_ui(name, id);
             ImGui::PopID();
         }

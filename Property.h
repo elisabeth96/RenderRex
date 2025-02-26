@@ -25,7 +25,7 @@ public:
 
     void set_length(float length);
 
-    void initialize_arrows(const std::vector<glm::vec3>& vectors, const std::vector<glm::vec3>& face_centers);
+    void initialize_arrows(const std::vector<glm::vec3>& vectors);
 
     bool is_enabled() const {
         return m_is_enabled;
@@ -45,6 +45,7 @@ public:
 
     std::vector<glm::mat4> m_transforms;
     std::vector<glm::mat4> m_rigid;
+    std::vector<glm::vec3> m_face_centers;
     std::vector<float>     m_vector_lengths;
 
     void update_instance_data();
