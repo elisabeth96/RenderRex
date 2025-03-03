@@ -329,7 +329,7 @@ void VisualMesh::on_camera_update() {
     }
 }
 
-void VisualMesh::update_ui(std::string, int) {
+void VisualMesh::update_ui(std::string) {
     bool update_uniforms = false;
     bool update_color    = false;
     if (m_show_options) {
@@ -364,12 +364,34 @@ void VisualMesh::update_ui(std::string, int) {
         // vector properties
         std::string changed_name;
         if (ImGui::TreeNode("Vector Properties")) {
+            int id = 0;
             for (auto& [name, prop] : m_vector_properties) {
+
+                ImGui::PushID(name.c_str());
                 bool is_enabled = prop->is_enabled();
                 if (ImGui::Checkbox(name.c_str(), &is_enabled)) {
                     changed_name = name;
                     prop->set_enabled(is_enabled);
                 }
+                ImGui::SameLine();
+                if (ImGui::Button("Options")) {
+                    prop->m_show = !prop->m_show;
+                }
+                if (prop->m_show) {
+                    bool update = false;
+                    update |= ImGui::ColorEdit3("Color", (float*)&prop->m_color);
+                    update |= ImGui::SliderFloat("Scale Radius", &prop->m_radius, 0.005f, 5.0f);
+                    update |= ImGui::SliderFloat("Scale Length", &prop->m_length, 0.005f, 5.0f);
+                    if (update) {
+                        prop->m_instance_data_dirty = true;
+                    }
+                }
+                // draw seperator line between vector properties
+                if (id < m_vector_properties.size() - 1) {
+                    ImGui::Separator();
+                }
+                ImGui::PopID();
+                ++id;
             }
             ImGui::TreePop();
         }
@@ -388,7 +410,7 @@ void VisualMesh::update_ui(std::string, int) {
 void VisualMesh::set_transform(const glm::mat4& transform) {
     m_uniforms.model_matrix = transform;
     m_uniforms_dirty        = true;
-    
+
     // Update all vector properties to apply the new transform
     for (auto& [name, prop] : m_vector_properties) {
         prop->m_instance_data_dirty = true;

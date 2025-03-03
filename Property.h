@@ -42,6 +42,7 @@ public:
     float m_length = 1.f;
 
     bool m_instance_data_dirty = true;
+    bool m_show = false;
 
     std::vector<glm::mat4> m_transforms;
     std::vector<glm::mat4> m_rigid;

@@ -212,7 +212,7 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
 
     ImGui::Begin("User Interface");
 
-    int id = 0;
+    size_t id = 0;
     if (ImGui::CollapsingHeader("Meshes")) {
         for (const auto& [name, mesh] : m_meshes) {
 
@@ -231,7 +231,7 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
                 mesh->m_show_options = !mesh->m_show_options;
             }
 
-            mesh->update_ui(name, id);
+            mesh->update_ui(name);
 
             if (mesh->m_show_options && mesh->get_transform() != nullptr) {
                 const char* transform_items[] = {"None", "Translate", "Rotate", "Scale"};
@@ -257,6 +257,7 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
         }
     }
 
+    id = 0;
     if (ImGui::CollapsingHeader("Point Clouds")) {
         for (const auto& [name, point_cloud] : m_point_clouds) {
             ImGui::PushID(name.c_str());
@@ -269,11 +270,16 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
             if (ImGui::Button("Options")) {
                 point_cloud->m_show_options = !point_cloud->m_show_options;
             }
-            point_cloud->update_ui(name, id);
+            point_cloud->update_ui(name);
             ImGui::PopID();
+            if (id < m_point_clouds.size() - 1) {
+                ImGui::Separator();
+            }
+            ++id;
         }
     }
 
+    id = 0;
     if (ImGui::CollapsingHeader("Line Networks")) {
         for (const auto& [name, line_network] : m_line_networks) {
             ImGui::PushID(name.c_str());
@@ -286,8 +292,12 @@ void Renderer::update_gui(WGPURenderPassEncoder render_pass) {
             if (ImGui::Button("Options")) {
                 line_network->m_show_options = !line_network->m_show_options;
             }
-            line_network->update_ui(name, id);
+            line_network->update_ui(name);
             ImGui::PopID();
+            if (id < m_line_networks.size() - 1) {
+                ImGui::Separator();
+            }
+            ++id;
         }
     }
 

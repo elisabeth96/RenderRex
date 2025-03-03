@@ -60,7 +60,7 @@ public:
         }
     }
 
-    void update_ui(std::string, int) override {
+    void update_ui(std::string) override {
         // todo
     }
 

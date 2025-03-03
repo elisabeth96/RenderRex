@@ -27,7 +27,7 @@ public:
 
     virtual void on_camera_update() = 0;
 
-    virtual void update_ui(std::string name, int index) = 0;
+    virtual void update_ui(std::string name) = 0;
 
     virtual void set_transform(const glm::mat4&) {}
 

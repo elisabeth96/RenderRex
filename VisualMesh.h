@@ -50,7 +50,7 @@ public:
 
     void on_camera_update() override;
 
-    void update_ui(std::string name, int index) override;
+    void update_ui(std::string name) override;
 
     void set_transform(const glm::mat4& transform) override;
 
@@ -125,16 +125,17 @@ public:
         m_spheres->upload_instance_data();
     };
 
-    void update_ui(std::string name, int index) override {
+    void update_ui(std::string name) override {
+        ImGui::PushID(name.c_str());
         if (m_visible && m_show_options) {
-            std::string label_radius = "scale radius ##" + std::to_string(index);
-            ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.5f, 10.5f);
-            std::string label_color = "change color ##" + std::to_string(index);
-            ImGui::ColorEdit3(label_color.c_str(), (float*)&m_color); // Edit 3 floats representing a color
+            
+            ImGui::ColorEdit3("Color", (float*)&m_color); // Edit 3 floats representing a color
             glm::vec3 newColor(m_color.x, m_color.y, m_color.z);
             set_color(newColor);
+            ImGui::SliderFloat("Radius", &m_radius, 0.5f, 10.5f);
             set_radius(m_radius * m_init_radius);
         }
+        ImGui::PopID();
     }
 
     void set_visible(bool show) {
@@ -230,18 +231,18 @@ public:
         m_vertices_mesh->upload_instance_data();
     }
 
-    void update_ui(std::string name, int index) override {
+    void update_ui(std::string name) override {
+        ImGui::PushID(name.c_str());
         if (m_visible && m_show_options) {
-            std::string label_radius = "set radius ##" + std::to_string(index);
-            if (ImGui::SliderFloat(label_radius.c_str(), &m_radius, 0.005f, 1.0f)) {
-                set_radius(m_radius);
-            }
-            std::string label_color = "change color ##" + std::to_string(index);
-            if (ImGui::ColorEdit3(label_color.c_str(), (float*)&m_color)) { // Edit 3 floats representing a color
+            if (ImGui::ColorEdit3("Color", (float*)&m_color)) { // Edit 3 floats representing a color
                 glm::vec3 newColor(m_color.x, m_color.y, m_color.z);
                 set_color(newColor);
             }
+            if (ImGui::SliderFloat("Radius", &m_radius, 0.005f, 1.0f)) {
+                set_radius(m_radius);
+            }
         }
+        ImGui::PopID();
     }
 
     void set_visible(bool show) {
